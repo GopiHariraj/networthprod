@@ -1,0 +1,602 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+// ============================================
+// USERS & AUTH
+// ============================================
+
+enum Role {
+  SUPER_ADMIN
+  USER
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String?
+  password      String?
+  googleId      String?  @unique
+  avatarUrl     String?
+  role          Role     @default(USER)
+  firstName     String
+  lastName      String?
+  currency      String   @default("AED") @map("currency") // Display currency preference (AED, USD, EUR, etc.)
+  refreshToken  String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Security / Reset
+  forceChangePassword Boolean @default(false)
+  resetToken          String? @unique
+  resetTokenExpiry    DateTime?
+  
+  // Soft Delete
+  isActive      Boolean  @default(true)
+  isDeleted     Boolean  @default(false)
+  deletedAt     DateTime?
+
+  // Security Lockout
+  failedLoginAttempts Int      @default(0)
+  isDisabled          Boolean  @default(false)
+
+  // Module Visibility Settings
+  moduleVisibility    Json?    // Optional JSON to store enabled/disabled modules
+  enableProductTour   Boolean  @default(true) // Control product tour visibility on login
+
+  // Relations
+  bankAccounts  BankAccount[]
+  goldAssets    GoldAsset[]
+  stockAssets   StockAsset[]
+  bondAssets    BondAsset[]
+  mutualFunds   MutualFundAsset[]
+  properties    Property[]
+  depreciatingAssets DepreciatingAsset[]
+  loans         Loan[]
+  creditCards   CreditCard[]
+  transactions  Transaction[]
+  goals         Goal[]
+  snapshots     NetWorthSnapshot[]
+  categories    Category[]
+  auditLogs     AuditLog[]
+  budgets       Budget[]
+  expenses          Expense[]
+  expenseCategories ExpenseCategory[]
+  insurancePolicies InsurancePolicy[]
+
+  @@map("users")
+}
+
+model BondAsset {
+  id            String   @id @default(uuid())
+  userId        String
+  name          String
+  issuer        String?
+  faceValue     Decimal  @db.Decimal(15, 2)
+  currentValue  Decimal  @db.Decimal(15, 2)
+  interestRate  Decimal  @db.Decimal(5, 2)
+  maturityDate  DateTime?
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("bond_assets")
+}
+
+model MutualFundAsset {
+  id             String   @id @default(uuid())
+  userId         String
+  name           String
+  provider       String?
+  folioNumber    String?
+  type           String?
+  units          Decimal? @db.Decimal(15, 4)
+  nav            Decimal? @db.Decimal(15, 4)
+  currentValue   Decimal  @db.Decimal(15, 2)
+  investedAmount Decimal  @db.Decimal(15, 2)
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mutual_fund_assets")
+}
+
+model CreditCard {
+  id              String   @id @default(uuid())
+  userId          String
+  cardName        String
+  bankName        String
+  creditLimit     Decimal  @db.Decimal(15, 2)
+  usedAmount      Decimal  @db.Decimal(15, 2)
+  dueDate         Int?     // Day of month
+  interestRate    Decimal? @db.Decimal(5, 2)
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses        Expense[] // Track expenses made with this card
+
+  @@index([userId])
+  @@map("credit_cards")
+}
+
+// ============================================
+// ASSETS
+// ============================================
+
+model BankAccount {
+  id            String   @id @default(uuid())
+  userId        String
+  accountName   String
+  bankName      String
+  accountNumber String?  // Optional, encrypted if stored
+  accountType   String   // Savings, Current, Fixed Deposit
+  balance       Decimal  @db.Decimal(15, 2)
+  currency      String   @default("AED")
+  isActive      Boolean  @default(true)
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  toExpenses    Expense[] @relation("ToBankAccount")
+
+  @@index([userId])
+  @@map("bank_accounts")
+}
+
+model GoldAsset {
+  id            String   @id @default(uuid())
+  userId        String
+  name          String   // "Gold Coins", "Gold Bar 100g"
+  weightGrams   Decimal  @db.Decimal(10, 3)
+  purchasePrice Decimal  @db.Decimal(15, 2)
+  purchaseDate  DateTime?
+  currentValue  Decimal  @db.Decimal(15, 2) // Updated manually or via API
+  notes         String?  @db.Text
+  imageUrl      String?  @db.LongText
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("gold_assets")
+}
+
+model StockAsset {
+  id            String   @id @default(uuid())
+  userId        String
+  symbol        String   // AAPL, RELIANCE.NS
+  name          String   // Apple Inc., Reliance Industries
+  exchange      String   // NASDAQ, NSE
+  quantity      Decimal  @db.Decimal(15, 4)
+  avgPrice      Decimal  @db.Decimal(15, 2)
+  currentPrice  Decimal  @db.Decimal(15, 2)
+  currency      String   @default("AED")
+  broker        String?
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  StockTransaction[]
+
+  @@index([userId])
+  @@map("stock_assets")
+}
+
+model StockTransaction {
+  id            String   @id @default(uuid())
+  stockAssetId  String
+  type          String   // BUY, SELL
+  quantity      Decimal  @db.Decimal(15, 4)
+  price         Decimal  @db.Decimal(15, 2)
+  date          DateTime @default(now())
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  stockAsset    StockAsset @relation(fields: [stockAssetId], references: [id], onDelete: Cascade)
+
+  @@index([stockAssetId])
+  @@map("stock_transactions")
+}
+
+model Property {
+  id              String   @id @default(uuid())
+  userId          String
+  name            String   // "Dubai Apartment", "Bangalore House"
+  propertyType    String   // Residential, Commercial, Land
+  location        String
+  purchasePrice   Decimal  @db.Decimal(15, 2)
+  purchaseDate    DateTime?
+  currentValue    Decimal  @db.Decimal(15, 2)
+  linkedLoanId    String?  // Link to mortgage loan
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("properties")
+}
+
+
+model DepreciatingAsset {
+  id                  String   @id @default(uuid())
+  userId              String
+  name                String   // "Tesla Model 3", "iPhone 15"
+  type                String   // Car, Electronics, Appliance, Other
+  purchasePrice       Decimal  @db.Decimal(15, 2)
+  purchaseCurrency    String?  @default("AED")
+  purchaseDate        DateTime
+  depreciationMethod  String   // "STRAIGHT_LINE", "PERCENTAGE"
+  rate                Decimal? @db.Decimal(5, 2) // Annual depreciation rate in %
+  usefulLife          Int?     // Useful life in years
+  isDepreciationEnabled Boolean @default(true)
+  currentValue        Decimal? @db.Decimal(15, 2)
+  salvageValue        Decimal? @db.Decimal(15, 2)
+  linkedLoanId        String?
+  notes               String?  @db.Text
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("depreciating_assets")
+}
+
+// LIABILITIES
+// ============================================
+
+model Loan {
+  id              String   @id @default(uuid())
+  userId          String
+  loanType        String   // Home, Car, Personal, Credit Card
+  lenderName      String
+  principal       Decimal  @db.Decimal(15, 2)
+  interestRate    Decimal  @db.Decimal(5, 2) // 3.5%, 8.5%
+  emiAmount       Decimal  @db.Decimal(15, 2)
+  outstanding     Decimal  @db.Decimal(15, 2)
+  startDate       DateTime
+  endDate         DateTime
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("loans")
+}
+
+// ============================================
+// TRANSACTIONS
+// ============================================
+
+model Transaction {
+  id            String   @id @default(uuid())
+  userId        String
+  accountId     String?  // For bank transactions
+  type          String   // Income, Expense, Transfer
+  amount        Decimal  @db.Decimal(15, 2)
+  categoryId    String?
+  description   String?
+  date          DateTime @default(now())
+  notes         String?  @db.Text
+  attachmentUrl String?  // Future: receipt images
+  source        String?  // "SMS", "MANUAL"
+  merchant      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account       BankAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category      Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([userId, type])
+  @@index([categoryId])
+  @@map("transactions")
+}
+
+model Category {
+  id            String        @id @default(uuid())
+  userId        String
+  name          String
+  type          CategoryType  @default(EXPENSE)
+  icon          String?
+  color         String?
+  isDefault     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  budgets       Budget[]
+
+  @@unique([userId, name])
+  @@map("categories")
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+}
+
+model Budget {
+  id            String   @id @default(uuid())
+  amount        Decimal  @db.Decimal(15, 2)
+  month         Int      // 1-12
+  year          Int
+  
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([userId, categoryId, month, year])
+  @@map("budgets")
+}
+
+// ============================================
+// EXPENSES with AI Integration
+// ============================================
+
+model Expense {
+  id            String   @id @default(uuid())
+  userId        String
+  date          DateTime
+  amount        Decimal  @db.Decimal(15, 2)
+  currency      String   @default("AED")
+  category      String
+  merchant      String?
+  paymentMethod String?  // cash, bank, credit_card
+  accountId     String?
+  toBankAccountId String? // For bank transfers
+  creditCardId  String?  // Link to CreditCard for credit_card payments
+  recurrence    String   @default("one-time") // one-time, monthly, yearly
+  periodTag     String   // daily, monthly, yearly
+  notes         String?  @db.Text
+  source        String   @default("manual") // manual, gemini_text, gemini_receipt
+  receiptUrl    String?
+  confidence    Decimal? @db.Decimal(3, 2) // AI confidence score 0.00-1.00
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creditCard    CreditCard?  @relation(fields: [creditCardId], references: [id], onDelete: SetNull)
+  toBankAccount BankAccount? @relation("ToBankAccount", fields: [toBankAccountId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([userId, category])
+  @@index([userId, periodTag])
+  @@index([creditCardId])
+  @@map("expenses")
+}
+
+model ExpenseCategory {
+  id        String   @id @default(uuid())
+  userId    String?  // null for system/default categories
+  name      String
+  isCustom  Boolean  @default(false)
+  icon      String?
+  color     String?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@map("expense_categories")
+}
+
+// ============================================
+// NET WORTH TRACKING
+// ============================================
+
+model NetWorthSnapshot {
+  id              String   @id @default(uuid())
+  userId          String
+  date            DateTime @default(now())
+  totalAssets     Decimal  @db.Decimal(15, 2)
+  totalLiabilities Decimal @db.Decimal(15, 2)
+  netWorth        Decimal  @db.Decimal(15, 2)
+  breakdown       Json?    // Detailed breakdown by asset type
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("networth_snapshots")
+}
+
+// ============================================
+// GOALS
+// ============================================
+
+model Goal {
+  id              String   @id @default(uuid())
+  userId          String
+  name            String
+  type            String   @default("NETWORTH") // NETWORTH, GOLD, PROPERTY, STOCKS, etc.
+  targetAmount    Decimal  @db.Decimal(15, 2)
+  currentAmount   Decimal  @db.Decimal(15, 2) @default(0)
+  targetDate      DateTime
+  priority        String   @default("Medium") // Low, Medium, High
+  linkedAccountId String?
+  notes           String?  @db.Text
+  isCompleted     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("goals")
+}
+
+// ============================================
+// AUDIT & SECURITY
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String
+  action      String   // CREATE, UPDATE, DELETE
+  entityType  String   // BankAccount, Loan, Transaction
+  entityId    String
+  changes     Json?    // Before/after values
+  ipAddress   String?
+  userAgent   String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// MARKET DATA CACHE (Phase 3)
+// ============================================
+
+model PriceCache {
+  id          String   @id @default(uuid())
+  assetType   String   // STOCK, GOLD
+  symbol      String   // AAPL, GOLD_AED_PER_GRAM
+  price       Decimal  @db.Decimal(15, 4)
+  currency    String
+  fetchedAt   DateTime @default(now())
+
+
+  @@unique([assetType, symbol, fetchedAt])
+  @@index([assetType, symbol])
+  @@map("price_cache")
+}
+
+// ============================================
+// EXCHANGE RATES
+// ============================================
+
+model ExchangeRate {
+  id             String   @id @default(uuid())
+  baseCurrency   String   // e.g., "AED"
+  targetCurrency String   // e.g., "USD"
+  rate           Decimal  @db.Decimal(18, 8)
+  source         String   @default("gemini") // gemini, fallback, manual
+  fetchedAt      DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([baseCurrency, targetCurrency])
+  @@index([baseCurrency])
+  @@index([fetchedAt])
+  @@map("exchange_rates")
+}
+
+// ============================================
+// INSURANCE MODULE
+// ============================================
+
+model InsurancePolicy {
+  id                String   @id @default(uuid())
+  userId            String
+  policyType        String   // Health, Life, Vehicle, Home, Travel, Other
+  provider          String   // Insurance Company
+  policyNumber      String
+  insuredMembers    String?  // comma-separated or JSON string
+  startDate         DateTime
+  expiryDate        DateTime
+  premiumAmount     Decimal  @db.Decimal(15, 2)
+  paymentFrequency  String   // Monthly, Yearly, Quarterly, etc.
+  sumInsured        Decimal  @db.Decimal(15, 2)
+  deductible        Decimal? @db.Decimal(15, 2)
+  coPay             Decimal? @db.Decimal(15, 2)
+  status            String   @default("Active") // Active, Expired, Cancelled
+  notes             String?  @db.Text
+  
+  // Life Policy specific (optional asset value)
+  cashValue         Decimal? @db.Decimal(15, 2)
+  isAsset           Boolean  @default(false)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  benefits          InsuranceBenefit[]
+  documents         InsuranceDocument[]
+  claims            InsuranceClaim[]
+
+  @@index([userId])
+  @@map("insurance_policies")
+}
+
+model InsuranceBenefit {
+  id              String   @id @default(uuid())
+  policyId        String
+  name            String   // OPD, Dental, Maternity, etc.
+  limitAmount     Decimal? @db.Decimal(15, 2)
+  limitPercent    Decimal? @db.Decimal(5, 2)
+  conditions      String?  @db.Text // Waiting period, exclusions
+  networkNotes    String?  @db.Text // Hospitals/clinics
+  remainingAmount Decimal? @db.Decimal(15, 2)
+
+  policy          InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([policyId])
+  @@map("insurance_benefits")
+}
+
+model InsuranceDocument {
+  id              String   @id @default(uuid())
+  policyId        String
+  name            String   // Policy PDF, E-card, etc.
+  fileUrl         String   @db.LongText
+  fileType        String?  // application/pdf, image/png, etc.
+  uploadedAt      DateTime @default(now())
+
+  policy          InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([policyId])
+  @@map("insurance_documents")
+}
+
+model InsuranceClaim {
+  id              String   @id @default(uuid())
+  policyId        String
+  claimNumber     String?
+  amount          Decimal  @db.Decimal(15, 2)
+  status          String   @default("Pending") // Pending, Approved, Rejected, Paid
+  dateFiled       DateTime @default(now())
+  description     String?  @db.Text
+  settledAmount   Decimal? @db.Decimal(15, 2)
+
+  policy          InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([policyId])
+  @@map("insurance_claims")
+}
