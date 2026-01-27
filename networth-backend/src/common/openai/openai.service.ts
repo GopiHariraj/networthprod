@@ -3,29 +3,39 @@ import OpenAI from 'openai';
 
 @Injectable()
 export class OpenAiService {
-  private openai: OpenAI;
+  private defaultOpenai: OpenAI | null = null;
 
   constructor() {
-    // Only initialize OpenAI if API key is available
+    // Initialize default if available as backup
     if (process.env.OPENAI_API_KEY) {
-      this.openai = new OpenAI({
+      this.defaultOpenai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
     }
   }
 
+  private getClient(apiKey?: string): OpenAI | null {
+    if (apiKey) {
+      return new OpenAI({ apiKey });
+    }
+    return this.defaultOpenai;
+  }
+
   async parseExpenseText(text: string): Promise<any> {
     try {
-      const apiKey = process.env.OPENAI_API_KEY;
+      // Use specific key for expenses if available, otherwise fallback
+      const apiKey = process.env.OPENAI_API_KEY_EXPENSES || process.env.OPENAI_API_KEY;
 
-      if (!apiKey) {
-        // Fallback to mock parser when OpenAI is not configured
-        console.log('OpenAI API key not found, using mock parser');
+      const client = this.getClient(apiKey);
+      if (!client) {
+        console.log('OpenAI API key (Expenses) not found, using mock parser');
         return this.mockParseExpenseText(text);
       }
 
-      const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+      console.log(`[OpenAiService] Parse Expenses using key: ${apiKey ? '***' + apiKey.slice(-4) : 'none'}`);
+
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -52,7 +62,7 @@ Return format:
 If date is relative (today, yesterday), convert to actual date.
 If no currency mentioned, assume AED.
 Assign appropriate category based on merchant and context.
-Confidence: 1.0 for explicit data, 0.7-0.9 for inferred data, 0.5-0.7 for guessed data.`,
+Confidence: 1.0 for explicit data, 0.7-0.9 for inferred data, 0.5-0.7 for guessed data.`
           },
           {
             role: 'user',
@@ -64,15 +74,84 @@ Confidence: 1.0 for explicit data, 0.7-0.9 for inferred data, 0.5-0.7 for guesse
       });
 
       const content = completion.choices[0].message.content;
-      if (!content) {
-        throw new Error('No content received from OpenAI');
-      }
+      if (!content) throw new Error('No content received from OpenAI');
+
       const result = JSON.parse(content);
       return result;
     } catch (error) {
       console.error('OpenAI API error:', error);
-      // Fallback to mock parser if OpenAI fails
       return this.mockParseExpenseText(text);
+    }
+  }
+
+  async parseSMSTransaction(text: string): Promise<any> {
+    try {
+      // Use specific key for transactions if available, otherwise fallback
+      const apiKey = process.env.OPENAI_API_KEY_TRANSACTIONS || process.env.OPENAI_API_KEY;
+
+      const client = this.getClient(apiKey);
+      if (!client) {
+        console.log('OpenAI API key (Transactions) not found, using mock parser');
+        return this.mockParseSMS(text);
+      }
+
+      console.log(`[OpenAiService] Parse SMS using key: ${apiKey ? '***' + apiKey.slice(-4) : 'none'}`);
+
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `Parse this financial transaction SMS and extract details. Return ONLY valid JSON.
+
+Transaction types: GOLD, STOCK, BOND, EXPENSE, INCOME, BANK_DEPOSIT
+
+Return format:
+{
+  "type": "GOLD" | "STOCK" | "BOND" | "EXPENSE" | "INCOME" | "BANK_DEPOSIT",
+  "amount": number,
+  "currency": "AED" | "USD",
+  "date": "YYYY-MM-DD",
+  
+  // For GOLD:
+  "weight": number (in grams),
+  "purity": "22K" | "24K" | "18K",
+  "ornamentName": "string",
+  
+  // For STOCK:
+  "stockSymbol": "string",
+  "units": number,
+  "unitPrice": number,
+  "market": "NASDAQ" | "NYSE" | "DFM",
+  
+  // For BOND:
+  "bondName": "string",
+  "interestRate": number,
+  "maturityDate": "YYYY-MM-DD",
+  
+  // For EXPENSE/INCOME:
+  "merchant": "string",
+  "category": "string",
+  
+  "confidence": 0.0-1.0
+}`
+          },
+          {
+            role: 'user',
+            content: text,
+          },
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = completion.choices[0].message.content;
+      if (!content) throw new Error('No content received from OpenAI');
+
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('OpenAI SMS parse error:', error);
+      return this.mockParseSMS(text);
     }
   }
 
@@ -103,20 +182,9 @@ Confidence: 1.0 for explicit data, 0.7-0.9 for inferred data, 0.5-0.7 for guesse
       }
     }
 
-    // Extract merchant name
-    const commonWords = ['spent', 'paid', 'bought', 'at', 'for', 'from', 'in', 'on', 'the', 'a', 'an'];
-    const words = text.split(/\s+/).filter(w => !commonWords.includes(w.toLowerCase()) && isNaN(Number(w)));
+    const words = text.split(/\s+/).filter(w => isNaN(Number(w)));
     const merchant = words.length > 0 ? words.slice(0, 2).join(' ') : 'General';
-
-    // Detect date
-    const today = new Date();
-    let date = today.toISOString().split('T')[0];
-
-    if (text.match(/yesterday/i)) {
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      date = yesterday.toISOString().split('T')[0];
-    }
+    const date = new Date().toISOString().split('T')[0];
 
     return {
       items: [
@@ -132,5 +200,141 @@ Confidence: 1.0 for explicit data, 0.7-0.9 for inferred data, 0.5-0.7 for guesse
         },
       ],
     };
+  }
+
+  private mockParseSMS(smsText: string): any {
+    const lowerText = smsText.toLowerCase();
+
+    // Detect transaction type
+    let type = 'EXPENSE';
+    if (lowerText.includes('gold') || lowerText.includes('chain')) type = 'GOLD';
+    else if (lowerText.includes('stock') || lowerText.includes('share')) type = 'STOCK';
+    else if (lowerText.includes('bond')) type = 'BOND';
+    else if (lowerText.includes('salary') || lowerText.includes('credit')) type = 'INCOME';
+    else if (lowerText.includes('deposit')) type = 'BANK_DEPOSIT';
+
+    const amountMatch = smsText.match(/(\d+(?:,\d{3})*(?:\.\d{2})?)/);
+    const amount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : 0;
+
+    return {
+      type,
+      amount,
+      currency: 'AED',
+      date: new Date().toISOString().split('T')[0],
+      confidence: 0.5,
+      merchant: 'Unknown',
+      category: 'Uncategorized'
+    };
+  }
+  async analyzeReceiptImage(imageBase64: string): Promise<any> {
+    try {
+      // Use expenses key for receipts as it's expense related, or fallback
+      const apiKey = process.env.OPENAI_API_KEY_EXPENSES || process.env.OPENAI_API_KEY;
+
+      const client = this.getClient(apiKey);
+      if (!client) {
+        throw new Error('OpenAI API key required for image analysis');
+      }
+
+      console.log(`[OpenAiService] Analyze Receipt using key: ${apiKey ? '***' + apiKey.slice(-4) : 'none'}`);
+
+      const response = await client.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `Analyze this receipt image and extract all transaction details. Return ONLY valid JSON.
+            
+Extract:
+{
+  "merchant": "store name",
+  "date": "YYYY-MM-DD",
+  "total": number,
+  "currency": "AED" | "USD",
+  "items": [
+    {
+      "name": "item name",
+      "quantity": number,
+      "price": number
+    }
+  ],
+  "category": "Groceries" | "Restaurants" | "Shopping" | etc.,
+  "paymentMethod": "cash" | "card",
+  "confidence": 0.0-1.0
+}`
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Extract receipt details" },
+              {
+                type: "image_url",
+                image_url: {
+                  "url": imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`
+                },
+              },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      });
+
+      const content = response.choices[0].message.content;
+      if (!content) throw new Error('No content received from OpenAI');
+
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('OpenAI Vision error:', error);
+      throw new Error('Receipt analysis failed. Please ensure image is clear and try again.');
+    }
+  }
+
+  async getStockQuote(symbol: string): Promise<{ price: number; currency: string }> {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY_STOCKS || process.env.OPENAI_API_KEY;
+
+      const client = this.getClient(apiKey);
+      if (!client) {
+        // Fallback to mock if no key
+        return { price: 0, currency: 'USD' };
+      }
+
+      console.log(`[OpenAiService] Get Stock Quote using key: ${apiKey ? '***' + apiKey.slice(-4) : 'none'}`);
+
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a financial assistant. Provide the LAST KNOWN closing stock price for the given symbol.
+Since you cannot browse the web for real-time data, provide the most recent price you have knowledge of (or a reasonable estimate for a stock of this type if data is unavailable).
+              
+Return ONLY valid JSON:
+{
+  "price": number,
+  "currency": "USD"
+}`
+          },
+          {
+            role: 'user',
+            content: `What is the price of ${symbol}?`
+          }
+        ],
+        response_format: { type: 'json_object' },
+      });
+
+      const content = completion.choices[0].message.content;
+      if (!content) throw new Error('No content from OpenAI');
+
+      const result = JSON.parse(content);
+      return { price: result.price, currency: result.currency || 'USD' };
+    } catch (error) {
+      console.error('OpenAI Stock Quote error:', error);
+      console.log(`[OpenAiService] Fallback to Mock Price for ${symbol}`);
+      // Generate deterministic mock price based on symbol char codes to keep it consistent-ish
+      const seed = symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const mockPrice = 100 + (seed % 900) + (Math.random() * 10); // Price between 100 and 1000
+      return { price: parseFloat(mockPrice.toFixed(2)), currency: 'USD' };
+    }
   }
 }

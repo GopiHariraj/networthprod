@@ -1,6 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { GeminiService } from '../common/openai/gemini.service';
+import { OpenAiService } from '../common/openai/openai.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { GoldAssetsService } from '../gold-assets/gold-assets.service';
 import { StockAssetsService } from '../stock-assets/stock-assets.service';
@@ -9,7 +9,7 @@ import { StockAssetsService } from '../stock-assets/stock-assets.service';
 export class TransactionsService {
   constructor(
     private prisma: PrismaService,
-    private geminiService: GeminiService,
+    private openAiService: OpenAiService,
     @Inject(forwardRef(() => GoldAssetsService))
     private goldAssetsService: GoldAssetsService,
     @Inject(forwardRef(() => StockAssetsService))
@@ -81,7 +81,7 @@ export class TransactionsService {
   }
 
   async parseAndCreate(userId: string, smsText: string) {
-    const parsed = await this.geminiService.parseSMSTransaction(smsText);
+    const parsed = await this.openAiService.parseSMSTransaction(smsText);
 
     // Route based on transaction type
     switch (parsed.type) {
@@ -394,7 +394,7 @@ export class TransactionsService {
 
   async analyzeReceipt(userId: string, imageBase64: string) {
     try {
-      const parsed = await this.geminiService.analyzeReceiptImage(imageBase64);
+      const parsed = await this.openAiService.analyzeReceiptImage(imageBase64);
 
       // Create expense transaction from receipt data
       const expense = await this.prisma.expense.create({

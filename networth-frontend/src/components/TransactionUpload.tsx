@@ -184,7 +184,7 @@ Examples:
                             onChange={(e) => setSmsText(e.target.value)}
                         />
                         <div className="flex justify-between items-center mt-4">
-                            <p className="text-xs text-slate-500 font-medium">✨ Gemini AI extracts details automatically.</p>
+                            <p className="text-xs text-slate-500 font-medium">✨ Smart AI extracts details automatically.</p>
                             <button
                                 onClick={handleAnalyzeSMS}
                                 disabled={loading || !smsText}

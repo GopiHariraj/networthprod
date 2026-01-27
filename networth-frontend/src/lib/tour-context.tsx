@@ -54,7 +54,7 @@ const TOUR_STEPS: TourStep[] = [
     {
         targetId: 'sidebar-link-expenses',
         title: 'Master Your Expenses 💵',
-        description: 'Add expenses manually, via Gemini AI, or by uploading bills to stay on budget.',
+        description: 'Add expenses manually, via Smart AI, or by uploading bills to stay on budget.',
         position: 'right'
     },
     {

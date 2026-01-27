@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
-import { GeminiService } from '../common/openai/gemini.service';
+import { OpenAiService } from '../common/openai/openai.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ExpensesService } from './expenses.service';
 import { CreateExpenseDto, UpdateExpenseDto, ReportFilterDto } from './dto/expense.dto';
@@ -8,7 +8,7 @@ import { CreateExpenseDto, UpdateExpenseDto, ReportFilterDto } from './dto/expen
 @UseGuards(JwtAuthGuard)
 export class ExpensesController {
   constructor(
-    private readonly geminiService: GeminiService,
+    private readonly openAiService: OpenAiService,
     private readonly expensesService: ExpensesService,
   ) { }
 
@@ -58,7 +58,7 @@ export class ExpensesController {
     }
 
     try {
-      const result = await this.geminiService.parseExpenseText(body.text);
+      const result = await this.openAiService.parseExpenseText(body.text);
       return result;
     } catch (error) {
       return {

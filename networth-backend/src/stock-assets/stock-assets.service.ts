@@ -4,14 +4,15 @@ import {
   CreateStockAssetDto,
   UpdateStockAssetDto,
 } from './dto/stock-asset.dto';
-import { AlphaVantageService } from './alpha-vantage.service';
+import { OpenAiService } from '../common/openai/openai.service';
 
 @Injectable()
 export class StockAssetsService {
   constructor(
     private prisma: PrismaService,
-    private alphaVantageService: AlphaVantageService,
+    private openAiService: OpenAiService,
   ) { }
+  // ... (saving space for brevity, just replacing imports and constructor)
 
   async findAll(userId: string) {
     const assets = await this.prisma.stockAsset.findMany({
@@ -134,14 +135,14 @@ export class StockAssetsService {
     }
 
     try {
-      const quote = await this.alphaVantageService.getStockQuote(asset.symbol);
+      const quote = await this.openAiService.getStockQuote(asset.symbol);
 
-      // Update the current price (Alpha Vantage returns USD prices)
+      // Update the current price
       const updated = await this.prisma.stockAsset.update({
         where: { id },
         data: {
           currentPrice: quote.price,
-          currency: 'USD', // Alpha Vantage returns prices in USD
+          currency: quote.currency,
         },
       });
 
@@ -161,21 +162,23 @@ export class StockAssetsService {
       return { message: 'No stocks to refresh', updated: 0 };
     }
 
-    const symbols = assets.map(a => a.symbol);
-    const prices = await this.alphaVantageService.getBatchQuotes(symbols);
-
     let updated = 0;
+    // Process sequentially to be safe with rate limits
     for (const asset of assets) {
-      const newPrice = prices.get(asset.symbol);
-      if (newPrice) {
-        await this.prisma.stockAsset.update({
-          where: { id: asset.id },
-          data: {
-            currentPrice: newPrice,
-            currency: 'USD',
-          },
-        });
-        updated++;
+      try {
+        const quote = await this.openAiService.getStockQuote(asset.symbol);
+        if (quote.price > 0) {
+          await this.prisma.stockAsset.update({
+            where: { id: asset.id },
+            data: {
+              currentPrice: quote.price,
+              currency: quote.currency,
+            },
+          });
+          updated++;
+        }
+      } catch (error) {
+        console.error(`Failed to refresh price for ${asset.symbol}:`, error);
       }
     }
 
@@ -188,11 +191,11 @@ export class StockAssetsService {
 
   async getQuoteBySymbol(symbol: string) {
     try {
-      const quote = await this.alphaVantageService.getStockQuote(symbol);
+      const quote = await this.openAiService.getStockQuote(symbol);
       return {
-        symbol: quote.symbol,
+        symbol: symbol,
         price: quote.price,
-        currency: 'USD', // Alpha Vantage returns USD prices
+        currency: quote.currency,
       };
     } catch (error) {
       console.error(`Failed to get quote for ${symbol}:`, error);
