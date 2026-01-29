@@ -43,6 +43,8 @@ services:
         condition: service_healthy
     networks:
       - networth-network
+    # Explicitly force production command to override any dev defaults
+    command: sh -c "npx prisma migrate deploy && npm run start:prod"
 
   # Frontend (Next.js)
   frontend:
@@ -61,6 +63,8 @@ services:
       - backend
     networks:
       - networth-network
+    # Explicitly force production command
+    command: npm start
 
 volumes:
   db_data:
