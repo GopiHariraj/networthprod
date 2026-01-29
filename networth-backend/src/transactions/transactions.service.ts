@@ -98,10 +98,79 @@ export class TransactionsService {
       case 'INCOME':
       case 'BANK_DEPOSIT':
         return this.createGeneralTransaction(userId, parsed);
-      default:
-        return this.createGeneralTransaction(userId, parsed);
     }
   }
+
+  async parseStatement(userId: string, file: Express.Multer.File, accountId: string) {
+    // 1. Extract Text
+    const { FileParser } = await import('../common/utils/file-parser.util');
+    const text = await FileParser.extractText(file.buffer, file.mimetype);
+
+    // 2. Parse with OpenAI
+    const result = await this.openAiService.parseStatement(text);
+
+    if (!result.expenses || result.expenses.length === 0) {
+      return { success: false, message: 'No expenses found in statement.' };
+    }
+
+    // 3. Create Transactions & Update Balance
+    let savedCount = 0;
+
+    await this.prisma.$transaction(async (tx) => {
+      // Find the account to link
+      const account = await tx.bankAccount.findUnique({ where: { id: accountId } });
+      if (!account) throw new Error('Bank account not found');
+
+      for (const item of result.expenses) {
+        // Create Transaction
+        const amount = Number(item.amount);
+        await tx.transaction.create({
+          data: {
+            userId,
+            amount,
+            description: item.description,
+            date: new Date(item.date),
+            type: 'EXPENSE',
+            merchant: item.merchant,
+            accountId: accountId,
+            source: 'STATEMENT_IMPORT'
+          }
+        });
+
+        // Create Expense Record
+        await tx.expense.create({
+          data: {
+            userId,
+            amount,
+            notes: item.description,
+            date: new Date(item.date),
+            merchant: item.merchant,
+            category: item.category || 'General',
+            paymentMethod: 'debit_card', // Assuming bank statement
+            accountId: accountId,
+            source: 'statement_import',
+            periodTag: 'monthly'
+          } as any
+        });
+
+        savedCount++;
+      }
+
+      // Update Account Balance (Total Deducted)
+      const totalAmount = result.expenses.reduce((sum: number, item: any) => sum + Number(item.amount), 0);
+      await tx.bankAccount.update({
+        where: { id: accountId },
+        data: { balance: { decrement: totalAmount } }
+      });
+    });
+
+    return {
+      success: true,
+      message: `Successfully imported ${savedCount} transactions.`,
+      data: result
+    };
+  }
+
 
   private async createGoldAsset(userId: string, parsed: any) {
     try {

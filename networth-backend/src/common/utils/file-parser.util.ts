@@ -1,5 +1,5 @@
 
-import * as pdf from 'pdf-parse';
+const pdf = require('pdf-parse');
 import * as XLSX from 'xlsx';
 import { BadRequestException } from '@nestjs/common';
 

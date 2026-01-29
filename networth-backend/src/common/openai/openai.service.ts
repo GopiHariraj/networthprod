@@ -155,6 +155,65 @@ Return format:
     }
   }
 
+  async parseStatement(text: string): Promise<any> {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY_EXPENSES || process.env.OPENAI_API_KEY;
+      const client = this.getClient(apiKey);
+
+      if (!client) {
+        console.log('OpenAI API key (Expenses) not found, using mock parser');
+        return this.mockParseExpenseText(text); // Fallback to single text parse or improve mock
+      }
+
+      console.log(`[OpenAiService] Parse Statement using key: ${apiKey ? '***' + apiKey.slice(-4) : 'none'}`);
+
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert financial assistant. Parse the following bank statement text and extract all transactions. Return ONLY valid JSON.
+
+Return format:
+{
+  "expenses": [
+      {
+          "date": "YYYY-MM-DD",
+          "description": "original description",
+          "amount": number,
+          "merchant": "extracted merchant name",
+          "category": "Groceries" | "Restaurants" | "Transport" | "Utilities" | "Shopping" | "Entertainment" | "Medical" | "Travel" | "Misc" | "Income" | "Transfer",
+          "type": "EXPENSE" | "INCOME"
+      }
+  ]
+}
+
+Rules:
+1. Ignore headers, footers, and page numbers.
+2. If multiple transactions exist, list them all.
+3. If amount is negative or labeled DR, it is an EXPENSE. If positive or CR (and logic suggests income), it is INCOME. However, most statements verify expense as debit.
+4. Convert dates to YYYY-MM-DD.
+5. Identify merchant from description.`
+          },
+          {
+            role: 'user',
+            content: text
+          }
+        ],
+        response_format: { type: 'json_object' }
+      });
+
+      const content = completion.choices[0].message.content;
+      if (!content) throw new Error('No content from OpenAI');
+
+      return JSON.parse(content);
+
+    } catch (error) {
+      console.error('OpenAI Statement parse error:', error);
+      return { expenses: [] };
+    }
+  }
+
   private mockParseExpenseText(text: string): any {
     // Simple regex-based parser as fallback
     const amountMatch = text.match(/(\d+(?:\.\d{1,2})?)\s*(AED|USD|EUR|dirhams?)?/i);
