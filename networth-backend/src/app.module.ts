@@ -22,12 +22,14 @@ import { MutualFundAssetsModule } from './mutual-fund-assets/mutual-fund-assets.
 import { ExchangeRateModule } from './exchange-rate/exchange-rate.module';
 import { InsuranceModule } from './insurance/insurance.module';
 import { DepreciatingAssetsModule } from './depreciating-assets/depreciating-assets.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     TransactionsModule,

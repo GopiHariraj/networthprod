@@ -157,6 +157,7 @@ model BankAccount {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[]
   toExpenses    Expense[] @relation("ToBankAccount")
+  loans         Loan[]
 
   @@index([userId])
   @@map("bank_accounts")
@@ -285,6 +286,10 @@ model Loan {
   updatedAt       DateTime @updatedAt
 
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedBankAccountId String?
+  linkedBankAccount   BankAccount? @relation(fields: [linkedBankAccountId], references: [id], onDelete: SetNull)
+  autoDebit       Boolean  @default(false)
+  emiDate         Int      @default(1)
 
   @@index([userId])
   @@map("loans")

@@ -3,6 +3,10 @@ import {
   IsNotEmpty,
   IsOptional,
   IsDateString,
+  IsBoolean,
+  IsInt,
+  Min,
+  Max,
 } from 'class-validator';
 
 export class CreateLoanDto {
@@ -37,6 +41,20 @@ export class CreateLoanDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsString()
+  @IsOptional()
+  linkedBankAccountId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  autoDebit?: boolean;
+
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  @IsOptional()
+  emiDate?: number;
 }
 
 export class UpdateLoanDto {
@@ -71,4 +89,18 @@ export class UpdateLoanDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsString()
+  @IsOptional()
+  linkedBankAccountId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  autoDebit?: boolean;
+
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  @IsOptional()
+  emiDate?: number;
 }
