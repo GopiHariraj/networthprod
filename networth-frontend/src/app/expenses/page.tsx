@@ -78,6 +78,7 @@ export default function ExpensesPage() {
         creditCardId: '',
         toBankAccountId: '',
         recurrence: 'one-time',
+        isSubscription: false,
         notes: ''
     });
 
@@ -167,12 +168,16 @@ export default function ExpensesPage() {
             return;
         }
 
+
+        const { isSubscription, ...expenseData } = formData;
+
         const payload = {
-            ...formData,
+            ...expenseData,
             amount: parseFloat(formData.amount),
             creditCardId: (formData.paymentMethod === 'credit_card' || formData.paymentMethod === 'bank') ? formData.creditCardId || null : null,
             toBankAccountId: (formData.paymentMethod === 'bank') ? formData.toBankAccountId || null : null,
             accountId: (formData.paymentMethod !== 'credit_card') ? formData.accountId || null : null,
+            recurrence: isSubscription ? 'monthly' : 'one-time',
             periodTag: 'monthly'
         };
 
@@ -197,6 +202,7 @@ export default function ExpensesPage() {
                 creditCardId: '',
                 toBankAccountId: '',
                 recurrence: 'one-time',
+                isSubscription: false,
                 notes: ''
             });
         } catch (err) {
@@ -217,6 +223,7 @@ export default function ExpensesPage() {
             creditCardId: expense.creditCardId || '',
             toBankAccountId: (expense as any).toBankAccountId || '',
             recurrence: expense.recurrence,
+            isSubscription: expense.recurrence === 'monthly',
             notes: expense.notes || ''
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -415,8 +422,8 @@ export default function ExpensesPage() {
                                                 type="button"
                                                 onClick={() => setReportFilters({ ...reportFilters, datePreset: preset.value as any })}
                                                 className={`px-4 py-3 rounded-2xl font-bold text-sm transition-all ${reportFilters.datePreset === preset.value
-                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                                                     }`}
                                             >
                                                 {preset.label}
@@ -456,8 +463,8 @@ export default function ExpensesPage() {
                                             <label
                                                 key={cat.id}
                                                 className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all cursor-pointer ${reportFilters.categories.includes(cat.name)
-                                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                                                     }`}
                                             >
                                                 <input
@@ -495,8 +502,8 @@ export default function ExpensesPage() {
                                             <label
                                                 key={method.value}
                                                 className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all cursor-pointer ${reportFilters.paymentMethods.includes(method.value)
-                                                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
-                                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                                                     }`}
                                             >
                                                 <input
@@ -534,8 +541,8 @@ export default function ExpensesPage() {
                                                         <label
                                                             key={acc.id}
                                                             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${reportFilters.accountIds.includes(acc.id)
-                                                                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
-                                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                                                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
+                                                                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                                                                 }`}
                                                         >
                                                             <input
@@ -570,8 +577,8 @@ export default function ExpensesPage() {
                                                         <label
                                                             key={acc.id}
                                                             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${reportFilters.accountIds.includes(acc.id)
-                                                                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
-                                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                                                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
+                                                                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                                                                 }`}
                                                         >
                                                             <input
@@ -606,8 +613,8 @@ export default function ExpensesPage() {
                                                         <label
                                                             key={card.id}
                                                             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${reportFilters.creditCardIds.includes(card.id)
-                                                                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
-                                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                                                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
+                                                                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                                                                 }`}
                                                         >
                                                             <input
@@ -1201,6 +1208,27 @@ export default function ExpensesPage() {
                                         )}
                                     </div>
 
+                                    <div className="bg-indigo-50 dark:bg-indigo-900/20 p-5 rounded-3xl border-2 border-dashed border-indigo-200 dark:border-indigo-800 flex items-center justify-between group hover:border-indigo-400 transition-all">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg transition-all ${formData.isSubscription ? 'bg-indigo-600 text-white rotate-12' : 'bg-white dark:bg-slate-800 text-slate-300'}`}>
+                                                🔄
+                                            </div>
+                                            <div>
+                                                <div className="font-black text-indigo-900 dark:text-indigo-100">Monthly Subscription</div>
+                                                <div className="text-xs font-bold text-indigo-400">Automatically repeat this expense every month</div>
+                                            </div>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.isSubscription}
+                                                onChange={(e) => setFormData({ ...formData, isSubscription: e.target.checked })}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="w-14 h-8 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600 shadow-inner"></div>
+                                        </label>
+                                    </div>
+
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black tracking-widest text-slate-400 uppercase ml-2">Merchant Name</label>
                                         <input
@@ -1237,7 +1265,7 @@ export default function ExpensesPage() {
                                             type="submit"
                                             className="flex-[2] py-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-3xl shadow-2xl shadow-blue-500/20 transition-all transform hover:scale-[1.02]"
                                         >
-                                            {editingId ? 'Save Changes' : 'Record Transaction'} 🚀
+                                            {editingId ? 'Save Changes' : (formData.isSubscription ? 'Start Subscription' : 'Record Transaction')} 🚀
                                         </button>
                                     </div>
                                 </form>
