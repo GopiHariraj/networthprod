@@ -39,7 +39,9 @@ export default function CashPage() {
         date: new Date().toISOString().split('T')[0],
         category: 'Salary',
         notes: '',
-        merchant: 'Salary'
+        merchant: '',
+        isRecurring: false,
+        targetAccountId: ''
     });
 
     const [editForm, setEditForm] = useState({
@@ -49,7 +51,7 @@ export default function CashPage() {
         date: new Date().toISOString().split('T')[0]
     });
 
-    const incomeCategories = ['Salary', 'Refund', 'Interest', 'Transfer-in', 'Gift', 'Other'];
+    const incomeCategories = ['Salary', 'Rental Income', 'Sales Profit', 'Refund', 'Interest', 'Transfer-in', 'Gift', 'Other'];
 
     const [formData, setFormData] = useState({
         accountName: '',
@@ -172,19 +174,43 @@ export default function CashPage() {
 
     const handleIncomeSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedAccountForIncome || !incomeForm.amount) return;
+
+        // Handle modal usage where target is pre-selected
+        const targetId = selectedAccountForIncome ? selectedAccountForIncome.id : incomeForm.targetAccountId;
+
+        if (!targetId || !incomeForm.amount) {
+            alert('Please select a target account and enter an amount.');
+            return;
+        }
+
+        const targetAccount = [...bankAccounts, ...wallets].find(a => a.id === targetId);
+        if (!targetAccount) return;
 
         setIsLoading(true);
         try {
+            let description = incomeForm.notes;
+
+            // Append recurrence metadata if toggled
+            if (incomeForm.isRecurring) {
+                description = (description ? description + '\n' : '') + '[Recurring: Monthly]';
+            }
+
+            // Generate description if empty
+            if (!description.trim()) {
+                description = `${incomeForm.category} - ${targetAccount.accountName}`;
+            }
+
             await transactionsApi.create({
                 amount: parseFloat(incomeForm.amount),
                 type: 'INCOME',
-                description: incomeForm.notes || `${incomeForm.category} - ${selectedAccountForIncome.accountName}`,
-                merchant: incomeForm.merchant,
+                description: description,
+                merchant: incomeForm.merchant || incomeForm.category, // Use category as merchant fallback
                 source: 'MANUAL',
-                accountId: selectedAccountForIncome.id,
-                date: incomeForm.date
+                accountId: targetId,
+                date: incomeForm.date,
+                categoryId: null // Explicitly null for now unless mapped strictly
             });
+
             await refreshNetWorth();
             setShowIncomeModal(false);
             setIncomeForm({
@@ -192,10 +218,16 @@ export default function CashPage() {
                 date: new Date().toISOString().split('T')[0],
                 category: 'Salary',
                 notes: '',
-                merchant: 'Salary'
+                merchant: '',
+                isRecurring: false,
+                targetAccountId: ''
             });
+            setSelectedAccountForIncome(null);
+
             alert('✅ Income recorded and balance updated!');
             if (activeTab === 'Transactions') fetchTransactions();
+            else setActiveTab('Overview');
+
         } catch (error) {
             console.error(error);
             alert('Failed to record income');
@@ -268,7 +300,7 @@ export default function CashPage() {
                     </div>
 
                     <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-                        {['Overview', 'Bank Accounts', 'Wallets', 'Transactions', 'Manage Account'].map(tab => (
+                        {['Overview', 'Income', 'Bank Accounts', 'Wallets', 'Transactions', 'Manage Account'].map(tab => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -362,6 +394,128 @@ export default function CashPage() {
                     </div>
                 )}
 
+                {activeTab === 'Income' && (
+                    <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-xl border border-slate-200 dark:border-slate-700">
+                            <h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white flex items-center gap-3">
+                                <span className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center">
+                                    💰
+                                </span>
+                                Record Income
+                            </h2>
+                            <p className="text-slate-500 mb-8 ml-14">
+                                Use the ‘Add Income’ option to record your earnings like salary, rental income, or sales profit.
+                                The balance will automatically update.
+                            </p>
+
+                            <form onSubmit={handleIncomeSubmit} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="col-span-full">
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Target Account *</label>
+                                        <select
+                                            value={incomeForm.targetAccountId}
+                                            onChange={(e) => setIncomeForm({ ...incomeForm, targetAccountId: e.target.value })}
+                                            className="w-full px-5 py-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all cursor-pointer"
+                                            required
+                                        >
+                                            <option value="">Select Account to Credit</option>
+                                            <optgroup label="Bank Accounts" className="font-bold text-slate-400">
+                                                {bankAccounts.map(acc => (
+                                                    <option key={acc.id} value={acc.id}>{acc.bankName} - {acc.accountName}</option>
+                                                ))}
+                                            </optgroup>
+                                            <optgroup label="Cash Wallets" className="font-bold text-slate-400">
+                                                {wallets.map(w => (
+                                                    <option key={w.id} value={w.id}>{w.accountName}</option>
+                                                ))}
+                                            </optgroup>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Income Source / Category *</label>
+                                        <select
+                                            value={incomeForm.category}
+                                            onChange={(e) => setIncomeForm({ ...incomeForm, category: e.target.value, merchant: e.target.value })}
+                                            className="w-full px-5 py-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                                            required
+                                        >
+                                            {incomeCategories.map(cat => (
+                                                <option key={cat} value={cat}>{cat}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Amount ({currency.code}) *</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            required
+                                            value={incomeForm.amount}
+                                            onChange={(e) => setIncomeForm({ ...incomeForm, amount: e.target.value })}
+                                            placeholder="0.00"
+                                            className="w-full px-5 py-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all font-mono text-xl"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Date *</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            value={incomeForm.date}
+                                            onChange={(e) => setIncomeForm({ ...incomeForm, date: e.target.value })}
+                                            className="w-full px-5 py-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center px-2">
+                                        <label className="flex items-center gap-3 cursor-pointer group">
+                                            <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${incomeForm.isRecurring ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                {incomeForm.isRecurring && <span className="text-white text-xs">✓</span>}
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={incomeForm.isRecurring}
+                                                onChange={(e) => setIncomeForm({ ...incomeForm, isRecurring: e.target.checked })}
+                                                className="hidden"
+                                            />
+                                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-emerald-600 transition-colors">Monthly Recurring Income</span>
+                                        </label>
+                                    </div>
+
+                                    <div className="col-span-full">
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Description / Notes</label>
+                                        <textarea
+                                            value={incomeForm.notes}
+                                            onChange={(e) => setIncomeForm({ ...incomeForm, notes: e.target.value })}
+                                            placeholder="Details about this income..."
+                                            rows={3}
+                                            className="w-full px-5 py-4 rounded-2xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all resize-none"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                                    <button
+                                        type="submit"
+                                        disabled={isLoading}
+                                        className="w-full py-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-lg rounded-2xl shadow-xl shadow-emerald-500/20 transition-all transform hover:scale-[1.01] disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        {isLoading ? 'Processing...' : (
+                                            <>
+                                                <span>💰</span>
+                                                Record Income
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
                 {(activeTab === 'Bank Accounts' || activeTab === 'Wallets') && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         {(activeTab === 'Bank Accounts' ? bankAccounts : wallets).length === 0 ? (
@@ -391,7 +545,7 @@ export default function CashPage() {
                                                     setShowIncomeModal(true);
                                                 }}
                                                 title="Record Income"
-                                                className="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-lg"
+                                                className="p-2 bg-emerald-5 dark:bg-emerald-900/20 text-emerald-600 rounded-lg"
                                             >
                                                 ➕
                                             </button>
@@ -485,7 +639,7 @@ export default function CashPage() {
                                                     </div>
                                                 </td>
                                                 <td className="py-4 px-4 text-right">
-                                                    <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
                                                         <button
                                                             onClick={() => handleEditTransaction(tr)}
                                                             className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
@@ -605,7 +759,8 @@ export default function CashPage() {
                         </div>
                     </div>
                 )}
-                {/* Income Modal */}
+
+                {/* Income Modal - KEPT FOR COMPATIBILITY with Card Actions */}
                 {showIncomeModal && selectedAccountForIncome && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
                         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 shadow-2xl border border-white/20 w-full max-w-lg animate-in zoom-in duration-300">
