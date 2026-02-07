@@ -130,7 +130,6 @@ export default function LoansPage() {
             emiDueDate: loan.emiDueDate.toString(),
             loanStartDate: loan.loanStartDate,
             loanEndDate: loan.loanEndDate,
-            loanEndDate: loan.loanEndDate,
             notes: loan.notes,
             linkedBankAccountId: loan.linkedBankAccountId || '',
             autoDebit: loan.autoDebit,
