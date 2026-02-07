@@ -56,8 +56,6 @@ function Sidebar({ isOpen = true, isCollapsed = false, onToggleOpen, onToggleCol
         'Mutual Funds': 'mutualFunds',
         'Loans': 'loans',
         'Insurance': 'insurance',
-        'Loans': 'loans',
-        'Insurance': 'insurance',
         'Depreciating Assets': 'depreciatingAssets',
         'To-Do': 'todo'
     };
