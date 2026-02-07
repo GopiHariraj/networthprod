@@ -13,7 +13,7 @@ export default function LiabilitiesPage() {
     const { data } = useNetWorth();
 
     const liabilityCategories = React.useMemo(() => [
-        { name: 'Housing Loans', value: convert(data.liabilities.loans.totalValue || 0, 'AED'), icon: '🏠', color: '#ef4444', link: '/loans' },
+        { name: 'Loans', value: convert(data.liabilities.loans.totalValue || 0, 'AED'), icon: '🏠', color: '#ef4444', link: '/loans' },
         { name: 'Credit Cards', value: convert(data.liabilities.creditCards.totalValue || 0, 'AED'), icon: '💳', color: '#f59e0b', link: '/loans' },
     ].filter(cat => cat.value > 0), [data, convert]);
 
@@ -135,7 +135,7 @@ export default function LiabilitiesPage() {
                                     <div>
                                         <div className="font-black text-xl text-slate-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">{cat.name}</div>
                                         <div className="text-slate-400 font-bold text-sm mt-1 uppercase tracking-wider">
-                                            {cat.name === 'Housing Loans' ? `${data.liabilities.loans.items?.length || 0} active loans` : `${data.liabilities.creditCards.items?.length || 0} cards`}
+                                            {cat.name === 'Loans' ? `${data.liabilities.loans.items?.length || 0} active loans` : `${data.liabilities.creditCards.items?.length || 0} cards`}
                                         </div>
                                     </div>
                                 </div>

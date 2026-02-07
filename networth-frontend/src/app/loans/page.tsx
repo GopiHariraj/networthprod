@@ -6,8 +6,9 @@ import { useNetWorth } from '../../lib/networth-context';
 import { financialDataApi } from '../../lib/api/financial-data';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
-interface HousingLoan {
+interface Loan {
     id: string;
+    loanType: string;
     lenderName: string;
     linkedProperty: string;
     originalAmount: number;
@@ -18,6 +19,9 @@ interface HousingLoan {
     loanStartDate: string;
     loanEndDate: string;
     notes: string;
+    linkedBankAccountId?: string;
+    autoDebit: boolean;
+    emiDate: number;
 }
 
 interface CreditCard {
@@ -39,7 +43,7 @@ const COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#10b981'
 export default function LoansPage() {
     const { currency, convert } = useCurrency();
     const { data, refreshNetWorth } = useNetWorth();
-    const [loans, setLoans] = useState<HousingLoan[]>([]);
+    const [loans, setLoans] = useState<Loan[]>([]);
     const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
     const [activeTab, setActiveTab] = useState<'loans' | 'cards' | 'insights'>('loans');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,6 +51,7 @@ export default function LoansPage() {
     const [editingCardId, setEditingCardId] = useState<string | null>(null);
 
     const [loanForm, setLoanForm] = useState({
+        loanType: 'Housing',
         lenderName: '',
         linkedProperty: '',
         originalAmount: '',
@@ -56,7 +61,10 @@ export default function LoansPage() {
         emiDueDate: '1',
         loanStartDate: '',
         loanEndDate: '',
-        notes: ''
+        notes: '',
+        linkedBankAccountId: '',
+        autoDebit: false,
+        emiDate: '1'
     });
 
     const [cardForm, setCardForm] = useState({
@@ -76,6 +84,7 @@ export default function LoansPage() {
         if (data.liabilities.loans.items) {
             setLoans(data.liabilities.loans.items.map((l: any) => ({
                 id: l.id,
+                loanType: l.loanType || 'Housing',
                 lenderName: l.lenderName,
                 linkedProperty: l.linkedProperty,
                 originalAmount: parseFloat(l.originalAmount) || 0,
@@ -85,7 +94,10 @@ export default function LoansPage() {
                 emiDueDate: l.emiDueDate || 1,
                 loanStartDate: (l.loanStartDate || new Date().toISOString()).split('T')[0],
                 loanEndDate: (l.loanEndDate || new Date().toISOString()).split('T')[0],
-                notes: l.notes
+                notes: l.notes,
+                linkedBankAccountId: l.linkedBankAccountId || '',
+                autoDebit: l.autoDebit || false,
+                emiDate: l.emiDate || 1
             })));
         }
         if (data.liabilities.creditCards.items) {
@@ -105,9 +117,10 @@ export default function LoansPage() {
         }
     }, [data.liabilities.loans.items, data.liabilities.creditCards.items]);
 
-    const handleEditLoan = (loan: HousingLoan) => {
+    const handleEditLoan = (loan: Loan) => {
         setEditingLoanId(loan.id);
         setLoanForm({
+            loanType: loan.loanType,
             lenderName: loan.lenderName,
             linkedProperty: loan.linkedProperty,
             originalAmount: loan.originalAmount.toString(),
@@ -117,7 +130,11 @@ export default function LoansPage() {
             emiDueDate: loan.emiDueDate.toString(),
             loanStartDate: loan.loanStartDate,
             loanEndDate: loan.loanEndDate,
-            notes: loan.notes
+            loanEndDate: loan.loanEndDate,
+            notes: loan.notes,
+            linkedBankAccountId: loan.linkedBankAccountId || '',
+            autoDebit: loan.autoDebit,
+            emiDate: loan.emiDate?.toString() || '1'
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -143,7 +160,7 @@ export default function LoansPage() {
     const handleCancelEdit = () => {
         setEditingLoanId(null);
         setEditingCardId(null);
-        setLoanForm({ lenderName: '', linkedProperty: '', originalAmount: '', outstandingBalance: '', interestRate: '', emiAmount: '', emiDueDate: '1', loanStartDate: '', loanEndDate: '', notes: '' });
+        setLoanForm({ loanType: 'Housing', lenderName: '', linkedProperty: '', originalAmount: '', outstandingBalance: '', interestRate: '', emiAmount: '', emiDueDate: '1', loanStartDate: '', loanEndDate: '', notes: '', linkedBankAccountId: '', autoDebit: false, emiDate: '1' });
         setCardForm({ cardName: '', bankName: '', totalLimit: '', usedAmount: '', minimumDue: '', dueDate: '1', statementDate: '1', monthlyInstallment: '', lastPaymentAmount: '', lastPaymentDate: '' });
     };
 
@@ -152,7 +169,7 @@ export default function LoansPage() {
         setIsSubmitting(true);
         try {
             const loanData = {
-                loanType: loanForm.linkedProperty || 'HOME',
+                loanType: loanForm.loanType,
                 lenderName: loanForm.lenderName,
                 principal: parseFloat(loanForm.originalAmount),
                 interestRate: parseFloat(loanForm.interestRate),
@@ -160,7 +177,10 @@ export default function LoansPage() {
                 outstanding: parseFloat(loanForm.outstandingBalance),
                 startDate: new Date(loanForm.loanStartDate).toISOString(),
                 endDate: new Date(loanForm.loanEndDate).toISOString(),
-                notes: loanForm.notes
+                notes: loanForm.notes,
+                linkedBankAccountId: loanForm.linkedBankAccountId || null,
+                autoDebit: loanForm.autoDebit,
+                emiDate: parseInt(loanForm.emiDate)
             };
 
             if (editingLoanId) {
@@ -172,7 +192,7 @@ export default function LoansPage() {
                 alert('🚀 Loan added successfully!');
             }
             await refreshNetWorth();
-            setLoanForm({ lenderName: '', linkedProperty: '', originalAmount: '', outstandingBalance: '', interestRate: '', emiAmount: '', emiDueDate: '1', loanStartDate: '', loanEndDate: '', notes: '' });
+            setLoanForm({ loanType: 'Housing', lenderName: '', linkedProperty: '', originalAmount: '', outstandingBalance: '', interestRate: '', emiAmount: '', emiDueDate: '1', loanStartDate: '', loanEndDate: '', notes: '', linkedBankAccountId: '', autoDebit: false, emiDate: '1' });
         } catch (error) {
             alert('Failed to save loan. Please try again.');
         } finally {
@@ -227,6 +247,22 @@ export default function LoansPage() {
     const getTotalLoanBalance = () => loans.reduce((sum, l) => sum + l.outstandingBalance, 0);
     const getTotalUsed = () => creditCards.reduce((sum, c) => sum + c.usedAmount, 0);
     const getTotalEMI = () => loans.reduce((sum, l) => sum + l.emiAmount, 0) + creditCards.reduce((sum, c) => sum + c.monthlyInstallment, 0);
+
+    // Auto-calculate EMI
+    useEffect(() => {
+        if (loanForm.originalAmount && loanForm.interestRate && loanForm.loanStartDate && loanForm.loanEndDate) {
+            const P = parseFloat(loanForm.originalAmount);
+            const R = parseFloat(loanForm.interestRate) / 12 / 100;
+            const start = new Date(loanForm.loanStartDate);
+            const end = new Date(loanForm.loanEndDate);
+            const N = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+
+            if (P > 0 && R > 0 && N > 0) {
+                const emi = (P * R * Math.pow(1 + R, N)) / (Math.pow(1 + R, N) - 1);
+                setLoanForm(prev => ({ ...prev, emiAmount: emi.toFixed(2) }));
+            }
+        }
+    }, [loanForm.originalAmount, loanForm.interestRate, loanForm.loanStartDate, loanForm.loanEndDate]);
 
     // Chart Data
     const debtDistribution = React.useMemo(() => [
@@ -341,7 +377,7 @@ export default function LoansPage() {
                                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                                     }`}
                             >
-                                {tab === 'loans' ? '🏠 Housing Loans' : tab === 'cards' ? '💳 Credit Cards' : '📊 Insights'}
+                                {tab === 'loans' ? '🏠 Loans' : tab === 'cards' ? '💳 Credit Cards' : '📊 Insights'}
                             </button>
                         ))}
                     </div>
@@ -375,8 +411,22 @@ export default function LoansPage() {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <div className="lg:col-span-1">
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-200 dark:border-slate-700 sticky top-8">
-                                    <h3 className="font-bold text-xl mb-6">{editingLoanId ? '✏️ Edit Housing Loan' : '➕ Add Housing Loan'}</h3>
+                                    <h3 className="font-bold text-xl mb-6">{editingLoanId ? '✏️ Edit Loan' : '➕ Add Loan'}</h3>
                                     <form onSubmit={handleAddLoan} className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-500 mb-1">Loan Type</label>
+                                            <select
+                                                value={loanForm.loanType}
+                                                onChange={e => setLoanForm({ ...loanForm, loanType: e.target.value })}
+                                                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-red-500 outline-none"
+                                            >
+                                                <option value="Housing">Housing Loan</option>
+                                                <option value="Car">Car Loan</option>
+                                                <option value="Personal">Personal Loan</option>
+                                                <option value="Education">Education Loan</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
                                         <div>
                                             <label className="block text-sm font-medium text-slate-500 mb-1">Lender Name</label>
                                             <input placeholder="e.g., ADCB Bank" value={loanForm.lenderName} onChange={e => setLoanForm({ ...loanForm, lenderName: e.target.value })} required className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-red-500 outline-none transition-all" />
@@ -411,6 +461,54 @@ export default function LoansPage() {
                                                 <input type="date" value={loanForm.loanEndDate} onChange={e => setLoanForm({ ...loanForm, loanEndDate: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-red-500 outline-none" />
                                             </div>
                                         </div>
+
+                                        <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="checkbox"
+                                                    id="autoDebit"
+                                                    checked={loanForm.autoDebit}
+                                                    onChange={e => setLoanForm({ ...loanForm, autoDebit: e.target.checked })}
+                                                    className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
+                                                />
+                                                <div>
+                                                    <label htmlFor="autoDebit" className="font-bold text-slate-900 dark:text-white">Enable Auto-Debit</label>
+                                                    <p className="text-xs text-slate-500">Automatically deduct EMI from selected account</p>
+                                                </div>
+                                            </div>
+
+                                            {loanForm.autoDebit && (
+                                                <div className="grid grid-cols-1 gap-4 animate-in slide-in-from-top-2 duration-300">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-500 mb-1">Deduct From</label>
+                                                        <select
+                                                            value={loanForm.linkedBankAccountId}
+                                                            onChange={e => setLoanForm({ ...loanForm, linkedBankAccountId: e.target.value })}
+                                                            required={loanForm.autoDebit}
+                                                            className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-red-500 outline-none"
+                                                        >
+                                                            <option value="">Select Bank Account</option>
+                                                            {data.assets.cash.bankAccounts.map((acc: any) => (
+                                                                <option key={acc.id} value={acc.id}>
+                                                                    {acc.bankName} - {acc.accountName} ({currency.symbol} {convert(acc.balance, 'AED').toLocaleString()})
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-500 mb-1">Deduction Day (1-31)</label>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max="31"
+                                                            value={loanForm.emiDate}
+                                                            onChange={e => setLoanForm({ ...loanForm, emiDate: e.target.value })}
+                                                            className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-red-500 outline-none"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                         <div className="flex gap-3">
                                             {editingLoanId && (
                                                 <button
@@ -426,7 +524,7 @@ export default function LoansPage() {
                                                 disabled={isSubmitting}
                                                 className="flex-1 py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black shadow-lg shadow-red-600/20 transition-all"
                                             >
-                                                {isSubmitting ? 'Saving...' : (editingLoanId ? '💾 Update Loan' : 'Add Loan Account')}
+                                                {isSubmitting ? 'Saving...' : (editingLoanId ? '💾 Update Loan' : 'Add Loan')}
                                             </button>
                                         </div>
                                     </form>
@@ -435,15 +533,20 @@ export default function LoansPage() {
                             <div className="lg:col-span-2 space-y-4">
                                 {loans.length === 0 ? (
                                     <div className="bg-white dark:bg-slate-800 p-12 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-slate-500">
-                                        No active housing loans found.
+                                        No active loans found.
                                     </div>
                                 ) : (
                                     loans.map(l => (
                                         <div key={l.id} className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-200 dark:border-slate-700 flex justify-between items-center group hover:shadow-lg transition-all">
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3 mb-2">
-                                                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center text-xl">🏠</div>
-                                                    <div className="font-black text-2xl tracking-tight">{l.lenderName}</div>
+                                                    <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center text-xl">
+                                                        {l.loanType === 'Car' ? '🚗' : l.loanType === 'Personal' ? '👤' : l.loanType === 'Education' ? '🎓' : '🏠'}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-black text-2xl tracking-tight leading-none">{l.lenderName}</div>
+                                                        <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">{l.loanType} Loan</div>
+                                                    </div>
                                                 </div>
                                                 <div className="grid grid-cols-3 gap-8 mt-6">
                                                     <div>
@@ -459,6 +562,11 @@ export default function LoansPage() {
                                                         <p className="text-lg font-black text-slate-900 dark:text-white mt-1">{new Date(l.loanEndDate).toLocaleDateString()}</p>
                                                     </div>
                                                 </div>
+                                                {l.autoDebit && (
+                                                    <div className="mt-4 px-3 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs font-bold rounded-lg flex items-center gap-2">
+                                                        <span>🔄</span> Auto-Debit Enabled (Day {l.emiDueDate})
+                                                    </div>
+                                                )}
                                                 <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
                                                     <div>
                                                         <p className="text-xs text-slate-400 font-bold uppercase">Outstanding Balance</p>
