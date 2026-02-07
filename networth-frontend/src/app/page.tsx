@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering to avoid SSR issues with client-side auth
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect, useRef } from 'react';
 import { transactionsApi, apiCache } from '../lib/api/client';
 import { financialDataApi } from '../lib/api/financial-data';
