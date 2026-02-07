@@ -74,6 +74,39 @@ export default function Dashboard() {
     const [showNotifications, setShowNotifications] = useState(false);
     const notificationRef = useRef<HTMLDivElement>(null);
 
+    // SAFARI SSO FIX: Handle token from URL params (bypasses localStorage issues)
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const ssoToken = urlParams.get('sso_token');
+        const ssoUserStr = urlParams.get('sso_user');
+
+        if (ssoToken && ssoUserStr) {
+            try {
+                const ssoUser = JSON.parse(decodeURIComponent(ssoUserStr));
+                console.log('[Dashboard] Received SSO token from URL, logging in...');
+
+                // Store in localStorage
+                localStorage.setItem('token', ssoToken);
+                localStorage.setItem('user', JSON.stringify(ssoUser));
+
+                // Store in cookies as backup
+                document.cookie = `token=${ssoToken}; path=/; max-age=7200; SameSite=Lax`;
+                document.cookie = `user=${encodeURIComponent(JSON.stringify(ssoUser))}; path=/; max-age=7200; SameSite=Lax`;
+
+                // Clean the URL (remove token from URL for security)
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+
+                // Force page reload to reinitialize auth context with new token
+                window.location.reload();
+            } catch (e) {
+                console.error('[Dashboard] Failed to process SSO token from URL:', e);
+            }
+        }
+    }, []);
+
     // Check for reminders (both popup and bell list)
     useEffect(() => {
         const checkReminders = async () => {

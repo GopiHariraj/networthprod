@@ -2,18 +2,16 @@
 "use client";
 
 import { useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '../../../../lib/auth-context';
+import { useSearchParams } from 'next/navigation';
 
 function CallbackContent() {
-    const router = useRouter();
     const searchParams = useSearchParams();
-    const { login } = useAuth();
 
     useEffect(() => {
         const token = searchParams.get('token');
         if (token) {
             try {
+                // Decode token to extract user info
                 const base64Url = token.split('.')[1];
                 const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
                 const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
@@ -28,40 +26,20 @@ function CallbackContent() {
                     role: decoded.role,
                 };
 
-                // Pass true to skip default router.push
-                login(token, user, true);
+                // SAFARI FIX: Pass token and user via URL parameters
+                // This bypasses all localStorage/cookie issues on Safari
+                const encodedUser = encodeURIComponent(JSON.stringify(user));
 
-                // Safari fix: Wait for localStorage to be set before redirecting
-                // This prevents redirect loops on mobile Safari
-                let retryCount = 0;
-                const MAX_RETRIES = 20; // 2 seconds max wait
-
-                const verifyAndRedirect = () => {
-                    const savedToken = localStorage.getItem('token');
-                    if (savedToken === token) {
-                        // localStorage confirmed, safe to redirect
-                        router.push('/');
-                    } else if (retryCount < MAX_RETRIES) {
-                        // Retry after a short delay (Safari may need time)
-                        retryCount++;
-                        setTimeout(verifyAndRedirect, 100);
-                    } else {
-                        // Timeout: force redirect anyway to prevent infinite loop
-                        console.warn('[Auth Callback] localStorage verification timeout, forcing redirect');
-                        router.push('/');
-                    }
-                };
-
-                // Small initial delay to ensure localStorage write completes
-                setTimeout(verifyAndRedirect, 50);
+                // Use window.location.replace for a clean redirect without history
+                window.location.replace(`/?sso_token=${encodeURIComponent(token)}&sso_user=${encodedUser}`);
             } catch (e) {
                 console.error('Failed to process login', e);
-                router.push('/login?error=auth_failed');
+                window.location.replace('/login?error=auth_failed');
             }
         } else {
-            router.push('/login?error=no_token');
+            window.location.replace('/login?error=no_token');
         }
-    }, [searchParams, login, router]);
+    }, [searchParams]);
 
     return (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center">
