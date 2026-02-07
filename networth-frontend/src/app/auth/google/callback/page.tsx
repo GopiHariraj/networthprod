@@ -13,13 +13,6 @@ function CallbackContent() {
     useEffect(() => {
         const token = searchParams.get('token');
         if (token) {
-            // Decode token to get user info if needed, or backend can return user in query params too
-            // For now, we trust the token and let auth-context fetch profile or decode it
-            // Actually, context.login expects (token, user).
-            // We might need to fetch user profile using the token, OR decode it.
-            // Simplified: login with token, and let context decode payload.
-
-            // To properly mock the user object without another call, we can decode the token
             try {
                 const base64Url = token.split('.')[1];
                 const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -33,14 +26,34 @@ function CallbackContent() {
                     email: decoded.email,
                     name: decoded.name || 'User',
                     role: decoded.role,
-                    // other fields might be missing but context usually fetches 'me' or we rely on token payload
                 };
 
-                // Pass true to skip default router.push and force hard redirect below
+                // Pass true to skip default router.push
                 login(token, user, true);
 
-                // Force hard reload to clear any router/state issues
-                window.location.href = '/';
+                // Safari fix: Wait for localStorage to be set before redirecting
+                // This prevents redirect loops on mobile Safari
+                let retryCount = 0;
+                const MAX_RETRIES = 20; // 2 seconds max wait
+
+                const verifyAndRedirect = () => {
+                    const savedToken = localStorage.getItem('token');
+                    if (savedToken === token) {
+                        // localStorage confirmed, safe to redirect
+                        router.push('/');
+                    } else if (retryCount < MAX_RETRIES) {
+                        // Retry after a short delay (Safari may need time)
+                        retryCount++;
+                        setTimeout(verifyAndRedirect, 100);
+                    } else {
+                        // Timeout: force redirect anyway to prevent infinite loop
+                        console.warn('[Auth Callback] localStorage verification timeout, forcing redirect');
+                        router.push('/');
+                    }
+                };
+
+                // Small initial delay to ensure localStorage write completes
+                setTimeout(verifyAndRedirect, 50);
             } catch (e) {
                 console.error('Failed to process login', e);
                 router.push('/login?error=auth_failed');

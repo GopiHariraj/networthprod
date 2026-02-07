@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 VPS_IP="34.16.36.153"
-VPS_USER="adminJ"
+VPS_USER="gopihariraj2"
 PROJECT_DIR="~/networth-app"
 
 echo "🚀 Starting deployment to VPS..."
@@ -18,7 +18,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}📦 Step 1: Pulling latest code from GitHub...${NC}"
-git pull origin main
+git pull origin master
 
 echo -e "${BLUE}🔄 Step 2: Connecting to VPS and deploying...${NC}"
 
@@ -32,7 +32,7 @@ echo "✅ In project directory"
 
 # Pull latest changes
 echo "📥 Pulling latest code..."
-git pull origin main
+git pull origin master
 
 # Stop existing containers
 echo "🛑 Stopping existing containers..."
