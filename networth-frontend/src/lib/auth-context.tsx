@@ -59,39 +59,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // Helper to get token from cookie
+    const getTokenFromCookie = (): string | null => {
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'token') {
+                return value;
+            }
+        }
+        return null;
+    };
+
+    // Helper to get user from cookie
+    const getUserFromCookie = (): User | null => {
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'user') {
+                try {
+                    return JSON.parse(decodeURIComponent(value));
+                } catch {
+                    return null;
+                }
+            }
+        }
+        return null;
+    };
+
     // Check token on mount and pathname changes
     React.useEffect(() => {
-        const savedToken = localStorage.getItem('token');
-        const savedUser = localStorage.getItem('user');
+        // Try localStorage first, fall back to cookies (Safari ITP workaround)
+        let savedToken = localStorage.getItem('token');
+        let savedUser = localStorage.getItem('user');
+        let parsedUser: User | null = null;
 
-        if (savedToken && savedUser) {
+        // Parse user from localStorage if available
+        if (savedUser) {
+            try {
+                parsedUser = JSON.parse(savedUser);
+            } catch {
+                parsedUser = null;
+            }
+        }
+
+        // Fallback to cookies if localStorage fails (Safari ITP)
+        if (!savedToken) {
+            console.log('[AuthContext] localStorage empty, checking cookies...');
+            savedToken = getTokenFromCookie();
+            if (savedToken) {
+                console.log('[AuthContext] Found token in cookie, syncing to localStorage');
+                localStorage.setItem('token', savedToken);
+            }
+        }
+
+        if (!parsedUser) {
+            parsedUser = getUserFromCookie();
+            if (parsedUser) {
+                console.log('[AuthContext] Found user in cookie, syncing to localStorage');
+                localStorage.setItem('user', JSON.stringify(parsedUser));
+            }
+        }
+
+        if (savedToken && parsedUser) {
             if (isTokenExpired(savedToken)) {
                 console.warn('[AuthContext] Token expired, logging out');
                 logout();
                 return;
             }
 
-            try {
-                const parsedUser = JSON.parse(savedUser);
-                setUser(parsedUser);
-                setToken(savedToken);
-                setIsAuthenticated(true);
-                setIsLoading(false);
+            setUser(parsedUser);
+            setToken(savedToken);
+            setIsAuthenticated(true);
+            setIsLoading(false);
 
-                // Force Password Change Check
-                if (parsedUser.forceChangePassword) {
-                    if (pathname !== '/reset-password' && pathname !== '/auth/logout') {
-                        router.push('/reset-password');
-                    }
-                } else {
-                    // Optionally redirect to dashboard after successful auth
-                    if (pathname === '/login' || pathname === '/register') {
-                        router.push('/');
-                    }
+            // Force Password Change Check
+            if (parsedUser.forceChangePassword) {
+                if (pathname !== '/reset-password' && pathname !== '/auth/logout') {
+                    router.push('/reset-password');
                 }
-            } catch (e) {
-                console.error('Failed to parse stored user', e);
-                logout();
+            } else {
+                // Optionally redirect to dashboard after successful auth
+                if (pathname === '/login' || pathname === '/register') {
+                    router.push('/');
+                }
             }
         } else {
             // Redirect to login if not authenticated and not on public page
@@ -122,8 +173,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('token', newToken);
         localStorage.setItem('user', JSON.stringify(userData));
 
-        // Store token in cookie for middleware access (server-side)
+        // Store token and user in cookie for Safari ITP compatibility
         document.cookie = `token=${newToken}; path=/; max-age=7200; SameSite=Lax`;
+        document.cookie = `user=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=7200; SameSite=Lax`;
 
         setUser(userData);
         setToken(newToken);
