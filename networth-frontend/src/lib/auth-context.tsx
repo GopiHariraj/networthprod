@@ -59,7 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const checkTokenAuth = React.useCallback(() => {
+    // Check token on mount and pathname changes
+    React.useEffect(() => {
         const savedToken = localStorage.getItem('token');
         const savedUser = localStorage.getItem('user');
 
@@ -82,6 +83,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     if (pathname !== '/reset-password' && pathname !== '/auth/logout') {
                         router.push('/reset-password');
                     }
+                } else {
+                    // Optionally redirect to dashboard after successful auth
+                    if (pathname === '/login' || pathname === '/register') {
+                        router.push('/');
+                    }
                 }
             } catch (e) {
                 console.error('Failed to parse stored user', e);
@@ -89,26 +95,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         } else {
             // Redirect to login if not authenticated and not on public page
-            const publicPaths = ['/login', '/register', '/reset-password', '/auth/reset-password', '/auth/magic-login', '/auth/reset'];
+            const publicPaths = ['/login', '/register', '/reset-password', '/auth/reset-password', '/auth/magic-login', '/auth/reset', '/auth/google/callback'];
 
             setIsLoading(false);
             if (!publicPaths.some(path => pathname.startsWith(path))) {
                 router.push('/login');
             }
         }
-    }, [pathname, router]);
+    }, [pathname, router]); // Only re-run when pathname or router changes
 
     useEffect(() => {
-        checkTokenAuth();
-
-        // Listen for window focus to catch expiration when user returns to tab
+        // Additional check for window focus to catch expiration
         const handleFocus = () => {
-            checkTokenAuth();
+            const savedToken = localStorage.getItem('token');
+            if (savedToken && isTokenExpired(savedToken)) {
+                console.warn('[AuthContext] Token expired on focus, logging out');
+                logout();
+            }
         };
 
         window.addEventListener('focus', handleFocus);
         return () => window.removeEventListener('focus', handleFocus);
-    }, [checkTokenAuth]);
+    }, []); // Only set up once
 
     const login = (newToken: string, userData: User, skipRedirect = false) => {
         localStorage.setItem('token', newToken);
