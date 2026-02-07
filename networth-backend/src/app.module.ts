@@ -23,6 +23,7 @@ import { ExchangeRateModule } from './exchange-rate/exchange-rate.module';
 import { InsuranceModule } from './insurance/insurance.module';
 import { DepreciatingAssetsModule } from './depreciating-assets/depreciating-assets.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { TodoModule } from './todo/todo.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     ExchangeRateModule,
     InsuranceModule,
     DepreciatingAssetsModule,
+    TodoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

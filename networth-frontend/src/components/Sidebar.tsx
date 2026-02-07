@@ -18,6 +18,7 @@ const MENU_ITEMS = [
     { name: 'Depreciating Assets', icon: '📉', path: '/depreciating-assets' },
     { name: 'AI Analysis', icon: '✨', path: '/ai-analysis' },
     { name: 'Expenses', path: '/expenses', icon: '💵' },
+    { name: 'To-Do', icon: '📝', path: '/todo' },
 ];
 
 interface SidebarProps {
@@ -55,7 +56,10 @@ function Sidebar({ isOpen = true, isCollapsed = false, onToggleOpen, onToggleCol
         'Mutual Funds': 'mutualFunds',
         'Loans': 'loans',
         'Insurance': 'insurance',
-        'Depreciating Assets': 'depreciatingAssets'
+        'Loans': 'loans',
+        'Insurance': 'insurance',
+        'Depreciating Assets': 'depreciatingAssets',
+        'To-Do': 'todo'
     };
 
     // Memoize filtered items to prevent recalculation on every render

@@ -101,6 +101,14 @@ export const insuranceApi = {
     delete: (id: string) => apiClient.delete(`/insurance/${id}`),
 };
 
+// To-Do API
+export const todoApi = {
+    getAll: (type?: string, isCompleted?: boolean) => apiClient.get('/todo', { params: { type, isCompleted } }),
+    create: (data: any) => apiClient.post('/todo', data),
+    update: (id: string, data: any) => apiClient.patch(`/todo/${id}`, data),
+    delete: (id: string) => apiClient.delete(`/todo/${id}`),
+};
+
 // Export all APIs
 export const financialDataApi = {
     bankAccounts: bankAccountsApi,
@@ -115,4 +123,5 @@ export const financialDataApi = {
     expenseCategories: expenseCategoriesApi,
     goals: goalsApi,
     insurance: insuranceApi,
+    todo: todoApi,
 };
