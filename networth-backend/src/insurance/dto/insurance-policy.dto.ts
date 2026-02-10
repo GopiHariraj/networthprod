@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsDateString, IsNumber, IsArray, IsBoolean, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsNumber, IsArray, IsBoolean, ValidateNested, IsDate } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateInsuranceBenefitDto {
@@ -7,10 +7,12 @@ export class CreateInsuranceBenefitDto {
 
     @IsNumber()
     @IsOptional()
+    @Type(() => Number)
     limitAmount?: number;
 
     @IsNumber()
     @IsOptional()
+    @Type(() => Number)
     limitPercent?: number;
 
     @IsString()
@@ -36,28 +38,38 @@ export class CreateInsurancePolicyDto {
     @IsOptional()
     insuredMembers?: string;
 
-    @IsDateString()
-    startDate: string;
+    @IsDate()
+    @Type(() => Date)
+    startDate: Date;
 
-    @IsDateString()
-    expiryDate: string;
+    @IsDate()
+    @Type(() => Date)
+    expiryDate: Date;
 
     @IsNumber()
+    @Type(() => Number)
     premiumAmount: number;
 
     @IsString()
     paymentFrequency: string;
 
     @IsNumber()
+    @Type(() => Number)
     sumInsured: number;
 
     @IsNumber()
     @IsOptional()
+    @Type(() => Number)
     deductible?: number;
 
     @IsNumber()
     @IsOptional()
+    @Type(() => Number)
     coPay?: number;
+
+    @IsString()
+    @IsOptional()
+    status?: string;
 
     @IsString()
     @IsOptional()
@@ -65,6 +77,7 @@ export class CreateInsurancePolicyDto {
 
     @IsNumber()
     @IsOptional()
+    @Type(() => Number)
     cashValue?: number;
 
     @IsBoolean()
