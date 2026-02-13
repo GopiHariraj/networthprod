@@ -40,7 +40,11 @@ export default function CashPage() {
         category: 'Salary',
         notes: '',
         merchant: '',
-        isRecurring: false,
+        recurrence: {
+            type: 'NONE', // NONE, DAILY, WEEKLY, MONTHLY, CUSTOM
+            customInterval: 1,
+            customUnit: 'MONTHS' // DAYS, WEEKS, MONTHS, YEARS
+        },
         targetAccountId: ''
     });
 
@@ -48,7 +52,12 @@ export default function CashPage() {
         amount: '',
         description: '',
         merchant: '',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        recurrence: {
+            type: 'NONE',
+            customInterval: 1,
+            customUnit: 'MONTHS'
+        }
     });
 
     const incomeCategories = ['Salary', 'Rental Income', 'Sales Profit', 'Refund', 'Interest', 'Transfer-in', 'Gift', 'Other'];
@@ -190,9 +199,28 @@ export default function CashPage() {
         try {
             let description = incomeForm.notes;
 
-            // Append recurrence metadata if toggled
-            if (incomeForm.isRecurring) {
-                description = (description ? description + '\n' : '') + '[Recurring: Monthly]';
+            // Construct structured recurrence data
+            const recurrenceData = incomeForm.recurrence.type !== 'NONE' ? {
+                isRecurring: true,
+                recurrenceType: incomeForm.recurrence.type,
+                recurrenceInterval: incomeForm.recurrence.type === 'CUSTOM' ? incomeForm.recurrence.customInterval : 1,
+                recurrenceUnit: incomeForm.recurrence.type === 'CUSTOM' ? incomeForm.recurrence.customUnit : undefined
+            } : { isRecurring: false };
+
+            // Append recurrence metadata tag to description for backward compatibility/UI visibility
+            if (incomeForm.recurrence.type !== 'NONE') {
+                let recurrenceTag = '';
+                if (incomeForm.recurrence.type === 'CUSTOM') {
+                    recurrenceTag = `[Recurring: Every ${incomeForm.recurrence.customInterval} ${incomeForm.recurrence.customUnit}]`;
+                } else {
+                    const typeMap: Record<string, string> = {
+                        DAILY: 'Daily',
+                        WEEKLY: 'Weekly',
+                        MONTHLY: 'Monthly'
+                    };
+                    recurrenceTag = `[Recurring: ${typeMap[incomeForm.recurrence.type]}]`;
+                }
+                description = (description ? description + '\n' : '') + recurrenceTag;
             }
 
             // Generate description if empty
@@ -208,7 +236,8 @@ export default function CashPage() {
                 source: 'MANUAL',
                 accountId: targetId,
                 date: incomeForm.date,
-                categoryId: null // Explicitly null for now unless mapped strictly
+                categoryId: null, // Explicitly null for now unless mapped strictly
+                ...recurrenceData
             });
 
             await refreshNetWorth();
@@ -219,7 +248,11 @@ export default function CashPage() {
                 category: 'Salary',
                 notes: '',
                 merchant: '',
-                isRecurring: false,
+                recurrence: {
+                    type: 'NONE',
+                    customInterval: 1,
+                    customUnit: 'MONTHS'
+                },
                 targetAccountId: ''
             });
             setSelectedAccountForIncome(null);
@@ -242,7 +275,12 @@ export default function CashPage() {
             amount: transaction.amount.toString(),
             description: transaction.description || '',
             merchant: transaction.merchant || '',
-            date: new Date(transaction.date).toISOString().split('T')[0]
+            date: new Date(transaction.date).toISOString().split('T')[0],
+            recurrence: {
+                type: transaction.isRecurring ? (transaction.recurrenceType || 'MONTHLY') : 'NONE',
+                customInterval: transaction.recurrenceInterval || 1,
+                customUnit: transaction.recurrenceUnit || 'MONTHS'
+            }
         });
     };
 
@@ -256,7 +294,11 @@ export default function CashPage() {
                 amount: parseFloat(editForm.amount),
                 description: editForm.description,
                 merchant: editForm.merchant,
-                date: editForm.date
+                date: editForm.date,
+                isRecurring: editForm.recurrence.type !== 'NONE',
+                recurrenceType: editForm.recurrence.type === 'NONE' ? undefined : editForm.recurrence.type,
+                recurrenceInterval: editForm.recurrence.type === 'CUSTOM' ? editForm.recurrence.customInterval : 1,
+                recurrenceUnit: editForm.recurrence.type === 'CUSTOM' ? editForm.recurrence.customUnit : undefined
             });
             await refreshNetWorth();
             fetchTransactions();
@@ -470,19 +512,52 @@ export default function CashPage() {
                                         />
                                     </div>
 
-                                    <div className="flex items-center px-2">
-                                        <label className="flex items-center gap-3 cursor-pointer group">
-                                            <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${incomeForm.isRecurring ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 dark:border-slate-600'}`}>
-                                                {incomeForm.isRecurring && <span className="text-white text-xs">✓</span>}
-                                            </div>
-                                            <input
-                                                type="checkbox"
-                                                checked={incomeForm.isRecurring}
-                                                onChange={(e) => setIncomeForm({ ...incomeForm, isRecurring: e.target.checked })}
-                                                className="hidden"
-                                            />
-                                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-emerald-600 transition-colors">Monthly Recurring Income</span>
-                                        </label>
+                                    <div className="col-span-full space-y-3">
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Recurrence</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <select
+                                                value={incomeForm.recurrence.type}
+                                                onChange={(e) => setIncomeForm({
+                                                    ...incomeForm,
+                                                    recurrence: { ...incomeForm.recurrence, type: e.target.value }
+                                                })}
+                                                className="w-full px-5 py-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                                            >
+                                                <option value="NONE">Doesn't repeat</option>
+                                                <option value="DAILY">Daily</option>
+                                                <option value="WEEKLY">Weekly</option>
+                                                <option value="MONTHLY">Monthly</option>
+                                                <option value="CUSTOM">Custom...</option>
+                                            </select>
+
+                                            {incomeForm.recurrence.type === 'CUSTOM' && (
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={incomeForm.recurrence.customInterval}
+                                                        onChange={(e) => setIncomeForm({
+                                                            ...incomeForm,
+                                                            recurrence: { ...incomeForm.recurrence, customInterval: parseInt(e.target.value) || 1 }
+                                                        })}
+                                                        className="w-20 px-3 py-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                    />
+                                                    <select
+                                                        value={incomeForm.recurrence.customUnit}
+                                                        onChange={(e) => setIncomeForm({
+                                                            ...incomeForm,
+                                                            recurrence: { ...incomeForm.recurrence, customUnit: e.target.value as any }
+                                                        })}
+                                                        className="flex-1 px-3 py-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                    >
+                                                        <option value="DAYS">Days</option>
+                                                        <option value="WEEKS">Weeks</option>
+                                                        <option value="MONTHS">Months</option>
+                                                        <option value="YEARS">Years</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="col-span-full">
@@ -603,6 +678,7 @@ export default function CashPage() {
                                         <th className="pb-4 font-bold text-slate-400 text-[10px] uppercase tracking-widest px-4">Date</th>
                                         <th className="pb-4 font-bold text-slate-400 text-[10px] uppercase tracking-widest px-4">Source / Merchant</th>
                                         <th className="pb-4 font-bold text-slate-400 text-[10px] uppercase tracking-widest px-4">Category</th>
+                                        <th className="pb-4 font-bold text-slate-400 text-[10px] uppercase tracking-widest px-4">Recurrence</th>
                                         <th className="pb-4 font-bold text-slate-400 text-[10px] uppercase tracking-widest px-4 text-right">Amount</th>
                                         <th className="pb-4 font-bold text-slate-400 text-[10px] uppercase tracking-widest px-4 text-right">Actions</th>
                                     </tr>
@@ -610,7 +686,7 @@ export default function CashPage() {
                                 <tbody>
                                     {transactions.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="py-20 text-center text-slate-400">
+                                            <td colSpan={6} className="py-20 text-center text-slate-400">
                                                 No transactions found for this selection.
                                             </td>
                                         </tr>
@@ -632,6 +708,20 @@ export default function CashPage() {
                                                     <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${tr.type === 'INCOME' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700/50'}`}>
                                                         {tr.category?.name || 'General'}
                                                     </span>
+                                                </td>
+                                                <td className="py-4 px-4">
+                                                    {tr.isRecurring ? (
+                                                        <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-lg w-fit">
+                                                            <span>🔄</span>
+                                                            <span>
+                                                                {tr.recurrenceType === 'CUSTOM'
+                                                                    ? `Every ${tr.recurrenceInterval} ${tr.recurrenceUnit?.toLowerCase()}`
+                                                                    : tr.recurrenceType?.charAt(0) + tr.recurrenceType?.slice(1).toLowerCase()}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-400 text-xs">-</span>
+                                                    )}
                                                 </td>
                                                 <td className="py-4 px-4 text-right">
                                                     <div className={`text-sm font-black font-mono ${tr.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900 dark:text-white'}`}>
@@ -792,6 +882,53 @@ export default function CashPage() {
                                             placeholder="0.00"
                                         />
                                     </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Recurrence</label>
+                                        <div className="flex gap-2">
+                                            <select
+                                                value={incomeForm.recurrence.type}
+                                                onChange={(e) => setIncomeForm({
+                                                    ...incomeForm,
+                                                    recurrence: { ...incomeForm.recurrence, type: e.target.value }
+                                                })}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-6 py-4 font-bold text-sm"
+                                            >
+                                                <option value="NONE">Doesn't repeat</option>
+                                                <option value="DAILY">Daily</option>
+                                                <option value="WEEKLY">Weekly</option>
+                                                <option value="MONTHLY">Monthly</option>
+                                                <option value="CUSTOM">Custom...</option>
+                                            </select>
+                                        </div>
+                                        {incomeForm.recurrence.type === 'CUSTOM' && (
+                                            <div className="flex gap-2 mt-2">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={incomeForm.recurrence.customInterval}
+                                                    onChange={(e) => setIncomeForm({
+                                                        ...incomeForm,
+                                                        recurrence: { ...incomeForm.recurrence, customInterval: parseInt(e.target.value) || 1 }
+                                                    })}
+                                                    className="w-24 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-4 py-3 font-bold text-sm"
+                                                />
+                                                <select
+                                                    value={incomeForm.recurrence.customUnit}
+                                                    onChange={(e) => setIncomeForm({
+                                                        ...incomeForm,
+                                                        recurrence: { ...incomeForm.recurrence, customUnit: e.target.value as any }
+                                                    })}
+                                                    className="flex-1 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-4 py-3 font-bold text-sm"
+                                                >
+                                                    <option value="DAYS">Days</option>
+                                                    <option value="WEEKS">Weeks</option>
+                                                    <option value="MONTHS">Months</option>
+                                                    <option value="YEARS">Years</option>
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Date</label>
                                         <input
@@ -887,6 +1024,52 @@ export default function CashPage() {
                                             className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-6 py-4 font-bold text-sm"
                                             placeholder="Merchant name"
                                         />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Recurrence</label>
+                                        <div className="flex gap-2">
+                                            <select
+                                                value={editForm.recurrence.type}
+                                                onChange={(e) => setEditForm({
+                                                    ...editForm,
+                                                    recurrence: { ...editForm.recurrence, type: e.target.value }
+                                                })}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-6 py-4 font-bold text-sm"
+                                            >
+                                                <option value="NONE">Doesn't repeat</option>
+                                                <option value="DAILY">Daily</option>
+                                                <option value="WEEKLY">Weekly</option>
+                                                <option value="MONTHLY">Monthly</option>
+                                                <option value="CUSTOM">Custom...</option>
+                                            </select>
+                                        </div>
+                                        {editForm.recurrence.type === 'CUSTOM' && (
+                                            <div className="flex gap-2 mt-2">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={editForm.recurrence.customInterval}
+                                                    onChange={(e) => setEditForm({
+                                                        ...editForm,
+                                                        recurrence: { ...editForm.recurrence, customInterval: parseInt(e.target.value) || 1 }
+                                                    })}
+                                                    className="w-24 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-4 py-3 font-bold text-sm"
+                                                />
+                                                <select
+                                                    value={editForm.recurrence.customUnit}
+                                                    onChange={(e) => setEditForm({
+                                                        ...editForm,
+                                                        recurrence: { ...editForm.recurrence, customUnit: e.target.value as any }
+                                                    })}
+                                                    className="flex-1 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl px-4 py-3 font-bold text-sm"
+                                                >
+                                                    <option value="DAYS">Days</option>
+                                                    <option value="WEEKS">Weeks</option>
+                                                    <option value="MONTHS">Months</option>
+                                                    <option value="YEARS">Years</option>
+                                                </select>
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Date</label>

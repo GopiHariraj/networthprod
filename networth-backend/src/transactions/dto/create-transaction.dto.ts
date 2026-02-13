@@ -34,6 +34,21 @@ export class CreateTransactionDto {
   @IsOptional()
   @IsString()
   creditCardId?: string;
+
+  @IsOptional()
+  isRecurring?: boolean;
+
+  @IsOptional()
+  @IsString()
+  recurrenceType?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
+
+  @IsOptional()
+  @IsNumber()
+  recurrenceInterval?: number;
+
+  @IsOptional()
+  @IsString()
+  recurrenceUnit?: 'DAYS' | 'WEEKS' | 'MONTHS' | 'YEARS';
 }
 
 export class ParseSmsDto {

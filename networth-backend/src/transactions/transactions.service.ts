@@ -29,6 +29,12 @@ export class TransactionsService {
           userId: userId,
           categoryId: dto.categoryId || null,
           accountId: dto.accountId || null,
+          isRecurring: dto.isRecurring || false,
+          recurrenceType: dto.recurrenceType,
+          recurrenceInterval: dto.recurrenceInterval,
+          recurrenceUnit: dto.recurrenceUnit,
+          nextRunDate: dto.isRecurring ? this.calculateNextRunDate(new Date(dto.date || new Date()), dto.recurrenceType, dto.recurrenceInterval || 1, dto.recurrenceUnit) : null,
+          lastRunDate: dto.isRecurring ? new Date(dto.date || new Date()) : null,
         },
       });
 
@@ -455,14 +461,32 @@ export class TransactionsService {
         }
       }
 
+      // Calculate next run date if recurrence is enabled/updated
+      let nextRunDate = existing.nextRunDate;
+      if (dto.isRecurring === true) {
+        nextRunDate = this.calculateNextRunDate(
+          dto.date ? new Date(dto.date) : existing.date,
+          dto.recurrenceType || existing.recurrenceType,
+          dto.recurrenceInterval || existing.recurrenceInterval || 1,
+          dto.recurrenceUnit || existing.recurrenceUnit
+        );
+      } else if (dto.isRecurring === false) {
+        nextRunDate = null;
+      }
+
       // Update the transaction
       const updated = await tx.transaction.update({
-        where: { id },
+        where: { id: id },
         data: {
           amount: newAmount,
           description: dto.description ?? existing.description,
           merchant: dto.merchant ?? existing.merchant,
           date: dto.date ? new Date(dto.date) : existing.date,
+          isRecurring: dto.isRecurring ?? existing.isRecurring,
+          recurrenceType: dto.recurrenceType ?? existing.recurrenceType,
+          recurrenceInterval: dto.recurrenceInterval ?? existing.recurrenceInterval,
+          recurrenceUnit: dto.recurrenceUnit ?? existing.recurrenceUnit,
+          nextRunDate: nextRunDate,
         },
       });
 
@@ -543,5 +567,24 @@ export class TransactionsService {
 
       return { success: true, message: 'Transaction deleted' };
     });
+  }
+
+  calculateNextRunDate(startDate: Date, type?: string, interval: number = 1, unit?: string): Date {
+    const nextDate = new Date(startDate);
+    if (!type) return nextDate;
+
+    if (type === 'DAILY') {
+      nextDate.setDate(nextDate.getDate() + 1);
+    } else if (type === 'WEEKLY') {
+      nextDate.setDate(nextDate.getDate() + 7);
+    } else if (type === 'MONTHLY') {
+      nextDate.setMonth(nextDate.getMonth() + 1);
+    } else if (type === 'CUSTOM' && unit) {
+      if (unit === 'DAYS') nextDate.setDate(nextDate.getDate() + interval);
+      if (unit === 'WEEKS') nextDate.setDate(nextDate.getDate() + (interval * 7));
+      if (unit === 'MONTHS') nextDate.setMonth(nextDate.getMonth() + interval);
+      if (unit === 'YEARS') nextDate.setFullYear(nextDate.getFullYear() + interval);
+    }
+    return nextDate;
   }
 }

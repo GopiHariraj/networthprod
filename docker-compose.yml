@@ -57,24 +57,25 @@ services:
   frontend:
     build:
       context: ./networth-frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+
     container_name: networth-frontend
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api}
       INTERNAL_API_URL: http://backend:3001/api
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: ${NODE_ENV:-production}
+
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
-    volumes:
-      - ./networth-frontend:/app
-      - /app/node_modules
-      - /app/.next
+
+
     depends_on:
       - backend
     networks:
       - networth-network
-    command: npm run dev
+    command: npm start
+
 
 volumes:
   db_data:

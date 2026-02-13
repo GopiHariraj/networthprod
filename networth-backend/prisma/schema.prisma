@@ -338,6 +338,15 @@ model Transaction {
   attachmentUrl String?  // Future: receipt images
   source        String?  // "SMS", "MANUAL"
   merchant      String?
+  
+  // Recurrence
+  isRecurring        Boolean   @default(false)
+  recurrenceType     String?   // DAILY, WEEKLY, MONTHLY, CUSTOM
+  recurrenceInterval Int?      @default(1)
+  recurrenceUnit     String?   // DAYS, WEEKS, MONTHS, YEARS
+  nextRunDate        DateTime?
+  lastRunDate        DateTime?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
