@@ -1361,7 +1361,7 @@ export default function ExpensesPage() {
                                             type="submit"
                                             className="flex-[2] py-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-3xl shadow-2xl shadow-blue-500/20 transition-all transform hover:scale-[1.02]"
                                         >
-                                            {editingId ? 'Save Changes' : (formData.isSubscription ? 'Start Subscription' : 'Record Transaction')} 🚀
+                                            {editingId ? 'Save Changes' : (formData.isRecurring ? 'Start Subscription' : 'Record Transaction')} 🚀
                                         </button>
                                     </div>
                                 </form>
