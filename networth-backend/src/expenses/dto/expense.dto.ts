@@ -46,11 +46,31 @@ export class CreateExpenseDto {
 
     @IsString()
     @IsOptional()
-    recurrence?: string;
+    recurrence?: string; // one-time, daily, weekly, monthly, custom
 
     @IsString()
     @IsNotEmpty()
     periodTag: string; // daily, monthly, yearly
+
+    // Recurrence Details
+    @IsOptional()
+    isRecurring?: boolean;
+
+    @IsString()
+    @IsOptional()
+    recurrenceType?: string; // DAILY, WEEKLY, MONTHLY, CUSTOM
+
+    @IsNumber()
+    @IsOptional()
+    recurrenceInterval?: number;
+
+    @IsString()
+    @IsOptional()
+    recurrenceUnit?: string; // DAYS, WEEKS, MONTHS, YEARS
+
+    @IsDateString()
+    @IsOptional()
+    nextRunDate?: string;
 
     @IsString()
     @IsOptional()
@@ -113,6 +133,26 @@ export class UpdateExpenseDto {
     @IsString()
     @IsOptional()
     periodTag?: string;
+
+    // Recurrence Details
+    @IsOptional()
+    isRecurring?: boolean;
+
+    @IsString()
+    @IsOptional()
+    recurrenceType?: string;
+
+    @IsNumber()
+    @IsOptional()
+    recurrenceInterval?: number;
+
+    @IsString()
+    @IsOptional()
+    recurrenceUnit?: string;
+
+    @IsDateString()
+    @IsOptional()
+    nextRunDate?: string;
 
     @IsString()
     @IsOptional()

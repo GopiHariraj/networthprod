@@ -418,8 +418,17 @@ model Expense {
   accountId     String?
   toBankAccountId String? // For bank transfers
   creditCardId  String?  // Link to CreditCard for credit_card payments
-  recurrence    String   @default("one-time") // one-time, monthly, yearly
+  recurrence    String   @default("one-time") // one-time, daily, weekly, monthly, custom
   periodTag     String   // daily, monthly, yearly
+  
+  // Recurrence Details
+  isRecurring        Boolean   @default(false)
+  recurrenceType     String?   // DAILY, WEEKLY, MONTHLY, CUSTOM
+  recurrenceInterval Int?      @default(1)
+  recurrenceUnit     String?   // DAYS, WEEKS, MONTHS, YEARS
+  nextRunDate        DateTime?
+  lastRunDate        DateTime?
+
   notes         String?  @db.Text
   source        String   @default("manual") // manual, gemini_text, gemini_receipt
   receiptUrl    String?

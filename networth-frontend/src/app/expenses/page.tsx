@@ -18,6 +18,13 @@ interface Expense {
     creditCardId?: string;
     toBankAccountId?: string;
     recurrence: string;
+    periodTag?: string;
+    isRecurring?: boolean;
+    recurrenceType?: string;
+    recurrenceInterval?: number;
+    recurrenceUnit?: string;
+    nextRunDate?: string;
+    lastRunDate?: string;
     notes?: string;
     source: string;
 }
@@ -78,7 +85,10 @@ export default function ExpensesPage() {
         creditCardId: '',
         toBankAccountId: '',
         recurrence: 'one-time',
-        isSubscription: false,
+        isRecurring: false,
+        recurrenceType: 'MONTHLY',
+        recurrenceInterval: 1,
+        recurrenceUnit: 'MONTHS',
         notes: ''
     });
 
@@ -169,17 +179,49 @@ export default function ExpensesPage() {
         }
 
 
-        const { isSubscription, ...expenseData } = formData;
-
         const payload = {
-            ...expenseData,
+            ...formData,
             amount: parseFloat(formData.amount),
             creditCardId: (formData.paymentMethod === 'credit_card' || formData.paymentMethod === 'bank') ? formData.creditCardId || null : null,
             toBankAccountId: (formData.paymentMethod === 'bank') ? formData.toBankAccountId || null : null,
             accountId: (formData.paymentMethod !== 'credit_card') ? formData.accountId || null : null,
-            recurrence: isSubscription ? 'monthly' : 'one-time',
-            periodTag: 'monthly'
+            recurrence: formData.isRecurring ? 'custom' : 'one-time',
+            periodTag: formData.isRecurring ? 'monthly' : 'monthly', // simplified for now
+            // Recurrence fields
+            isRecurring: formData.isRecurring,
+            recurrenceType: formData.isRecurring ? formData.recurrenceType : null,
+            recurrenceInterval: formData.isRecurring ? formData.recurrenceInterval : null,
+            recurrenceUnit: formData.isRecurring ? formData.recurrenceUnit : null,
+            nextRunDate: formData.isRecurring ? formData.date : null, // First run is the transaction date implies immediate execution or next? Usually next run is calculated. If I set nextRunDate to today, scheduler runs tonight/tomorrow. Expense is created now. So nextRunDate should be calculated based on interval.
+            // Actually, for immediate deduction, we just create the expense. The scheduler should pick up *future* occurrences. 
+            // So if I create a daily expense today, I want one today (created now) and one tomorrow (scheduler).
+            // The scheduler finds items where nextRunDate <= today.
+            // IF I set nextRunDate to tomorrow, scheduler picks it up tomorrow.
+            // Let's rely on backend scheduler to calculate next run date if I don't send it? 
+            // My backend logic in creating expense sets nextRunDate if provided.
+            // I should calculate the next run date here or let backend do it? 
+            // The backend Create logic doesn't automatically set nextRunDate unless I pass it. 
+            // Wait, I didn't update backend Create logic to auto-calc nextNextRunDate. 
+            // So I should pass `nextRunDate` calculated here or update backend. 
+            // Let's pass it from here for now.
         };
+
+        // Calculate next run date for the payload if recurring
+        if (payload.isRecurring) {
+            const next = new Date(formData.date);
+            if (payload.recurrenceType === 'DAILY') next.setDate(next.getDate() + 1);
+            else if (payload.recurrenceType === 'WEEKLY') next.setDate(next.getDate() + 7);
+            else if (payload.recurrenceType === 'MONTHLY') next.setMonth(next.getMonth() + 1);
+            else if (payload.recurrenceType === 'CUSTOM') {
+                const n = payload.recurrenceInterval || 1;
+                const u = payload.recurrenceUnit || 'MONTHS';
+                if (u === 'DAYS') next.setDate(next.getDate() + n);
+                if (u === 'WEEKS') next.setDate(next.getDate() + (n * 7));
+                if (u === 'MONTHS') next.setMonth(next.getMonth() + n);
+                if (u === 'YEARS') next.setFullYear(next.getFullYear() + n);
+            }
+            payload.nextRunDate = next.toISOString();
+        }
 
         try {
             if (editingId) {
@@ -202,7 +244,10 @@ export default function ExpensesPage() {
                 creditCardId: '',
                 toBankAccountId: '',
                 recurrence: 'one-time',
-                isSubscription: false,
+                isRecurring: false,
+                recurrenceType: 'MONTHLY',
+                recurrenceInterval: 1,
+                recurrenceUnit: 'MONTHS',
                 notes: ''
             });
         } catch (err) {
@@ -223,7 +268,10 @@ export default function ExpensesPage() {
             creditCardId: expense.creditCardId || '',
             toBankAccountId: (expense as any).toBankAccountId || '',
             recurrence: expense.recurrence,
-            isSubscription: expense.recurrence === 'monthly',
+            isRecurring: (expense as any).isRecurring || false,
+            recurrenceType: (expense as any).recurrenceType || 'MONTHLY',
+            recurrenceInterval: (expense as any).recurrenceInterval || 1,
+            recurrenceUnit: (expense as any).recurrenceUnit || 'MONTHS',
             notes: expense.notes || ''
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1208,25 +1256,73 @@ export default function ExpensesPage() {
                                         )}
                                     </div>
 
-                                    <div className="bg-indigo-50 dark:bg-indigo-900/20 p-5 rounded-3xl border-2 border-dashed border-indigo-200 dark:border-indigo-800 flex items-center justify-between group hover:border-indigo-400 transition-all">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg transition-all ${formData.isSubscription ? 'bg-indigo-600 text-white rotate-12' : 'bg-white dark:bg-slate-800 text-slate-300'}`}>
-                                                🔄
+                                    <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 p-6 rounded-3xl border-2 border-dashed border-indigo-200 dark:border-indigo-800 relative group hover:border-indigo-400 transition-all">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-lg transition-all ${formData.isRecurring ? 'bg-indigo-600 text-white rotate-12 scale-110' : 'bg-white dark:bg-slate-800 text-slate-300'}`}>
+                                                    🔄
+                                                </div>
+                                                <div>
+                                                    <div className="font-black text-lg text-indigo-900 dark:text-indigo-100">Recurring Expense</div>
+                                                    <div className="text-xs font-bold text-indigo-400">Automatically generate this later</div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <div className="font-black text-indigo-900 dark:text-indigo-100">Monthly Subscription</div>
-                                                <div className="text-xs font-bold text-indigo-400">Automatically repeat this expense every month</div>
-                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.isRecurring}
+                                                    onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-14 h-8 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600 shadow-inner"></div>
+                                            </label>
                                         </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.isSubscription}
-                                                onChange={(e) => setFormData({ ...formData, isSubscription: e.target.checked })}
-                                                className="sr-only peer"
-                                            />
-                                            <div className="w-14 h-8 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600 shadow-inner"></div>
-                                        </label>
+
+                                        {formData.isRecurring && (
+                                            <div className="mt-6 pt-6 border-t border-indigo-200/50 dark:border-indigo-800/50 grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4 fade-in duration-300">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black tracking-widest text-indigo-400 uppercase ml-2">Repeat Frequency</label>
+                                                    <select
+                                                        value={formData.recurrenceType}
+                                                        onChange={(e) => setFormData({ ...formData, recurrenceType: e.target.value })}
+                                                        className="w-full bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-3 font-bold text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                                                    >
+                                                        <option value="DAILY">Daily</option>
+                                                        <option value="WEEKLY">Weekly</option>
+                                                        <option value="MONTHLY">Monthly</option>
+                                                        <option value="CUSTOM">Custom Interval</option>
+                                                    </select>
+                                                </div>
+
+                                                {formData.recurrenceType === 'CUSTOM' && (
+                                                    <div className="flex gap-2">
+                                                        <div className="space-y-2 flex-1">
+                                                            <label className="text-[10px] font-black tracking-widest text-indigo-400 uppercase ml-2">Interval</label>
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                value={formData.recurrenceInterval}
+                                                                onChange={(e) => setFormData({ ...formData, recurrenceInterval: parseInt(e.target.value) || 1 })}
+                                                                className="w-full bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-3 font-bold text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-2 flex-1">
+                                                            <label className="text-[10px] font-black tracking-widest text-indigo-400 uppercase ml-2">Unit</label>
+                                                            <select
+                                                                value={formData.recurrenceUnit}
+                                                                onChange={(e) => setFormData({ ...formData, recurrenceUnit: e.target.value })}
+                                                                className="w-full bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-3 font-bold text-sm focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                                                            >
+                                                                <option value="DAYS">Days</option>
+                                                                <option value="WEEKS">Weeks</option>
+                                                                <option value="MONTHS">Months</option>
+                                                                <option value="YEARS">Years</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="space-y-2">
@@ -1338,6 +1434,11 @@ export default function ExpensesPage() {
                                                     </div>
                                                     <div className="flex items-center gap-3 mt-2">
                                                         <span className="text-[10px] font-black px-2.5 py-1 bg-slate-200 dark:bg-slate-700 rounded-lg opacity-80 uppercase">{expense.paymentMethod?.replace('_', ' ')}</span>
+                                                        {expense.isRecurring && (
+                                                            <span className="text-[10px] font-black px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-lg uppercase flex items-center gap-1">
+                                                                <span>🔄</span> RECURRING
+                                                            </span>
+                                                        )}
                                                         {expense.source.includes('gemini') && (
                                                             <span className="text-[10px] font-black px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-lg uppercase">AI ENRICHED 🪄</span>
                                                         )}

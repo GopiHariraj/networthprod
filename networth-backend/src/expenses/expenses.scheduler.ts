@@ -8,105 +8,103 @@ export class ExpensesScheduler {
     private readonly logger = new Logger(ExpensesScheduler.name);
 
     constructor(
-        private readonly prisma: PrismaService,
-        private readonly expensesService: ExpensesService,
+        private prisma: PrismaService,
+        private expensesService: ExpensesService,
     ) { }
 
+    // Run every day at midnight
     @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
     async handleRecurringExpenses() {
-        this.logger.log('Checking for Recurring Expenses...');
+        this.logger.log('🔄 Checking for recurring expenses...');
+
         const today = new Date();
-        const dayOfMonth = today.getDate();
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        today.setHours(0, 0, 0, 0);
 
-        // Find all monthly recurring expenses where the original date's day matches today
-        // We have to filter in JS because Prisma doesn't support DATE_PART equivalent easily in all DBs
-        // But for optimization, we can just fetch all 'monthly' recurring expenses and filter
-        // Or if we had a separate 'dayOfMonth' field, it would be efficient. 
-        // For now, fetching all active monthly subscriptions is fine (assuming volume is manageable)
-
+        // Find all active recurring expenses due today or earlier
         const recurringExpenses = await this.prisma.expense.findMany({
             where: {
-                recurrence: 'monthly',
-                // Optional: add isActive flag if we support cancelling subscriptions without deleting
-            }
+                isRecurring: true,
+                nextRunDate: {
+                    lte: today,
+                },
+            },
         });
+
+        this.logger.log(`Found ${recurringExpenses.length} recurring expenses due.`);
 
         for (const expense of recurringExpenses) {
             try {
-                const expenseDate = new Date(expense.date);
-                if (expenseDate.getDate() !== dayOfMonth) {
-                    continue;
-                }
+                this.logger.log(`Processing recurring expense: ${expense.category} - ${expense.amount}`);
 
-                // Check if already paid this month
-                const alreadyPaid = await this.prisma.expense.findFirst({
-                    where: {
-                        userId: expense.userId,
-                        category: expense.category,
-                        merchant: expense.merchant,
-                        amount: expense.amount,
-                        date: {
-                            gte: startOfMonth,
-                            lte: endOfMonth,
-                        },
-                        source: 'auto-recurring' // Identifier for auto-generated
-                    }
-                });
-
-                if (alreadyPaid) {
-                    this.logger.debug(`Subscription '${expense.merchant}' already processed for this month.`);
-                    continue;
-                }
-
-                this.logger.log(`Processing Recurring Expense: ${expense.merchant} (${expense.amount})`);
-
-                // Create new expense
+                // 1. Create the new expense instance
                 await this.expensesService.create(expense.userId, {
+                    date: new Date().toISOString(),
                     amount: Number(expense.amount),
                     currency: expense.currency,
-                    date: today.toISOString(),
                     category: expense.category,
                     merchant: expense.merchant || undefined,
-                    paymentMethod: expense.paymentMethod || 'cash',
+                    paymentMethod: expense.paymentMethod || undefined,
                     accountId: expense.accountId || undefined,
                     creditCardId: expense.creditCardId || undefined,
                     toBankAccountId: expense.toBankAccountId || undefined,
-                    // Usually the instance is 'one-time' but part of a recurrence. 
-                    // Let's keep it 'monthly' so it shows up as such, but we need to distinguish PARENT vs CHILD to avoid double charging next month.
-                    // BETTER APPROACH: The parent is the "template". The children are just records.
-                    // But here we are modifying the "Expense" table which mixes both.
-                    // To avoid "exponential growth" (scheduler picking up the new child as a parent next month),
-                    // we should ensure we only process the "original" or "recurrence=monthly" ones.
-                    // If we set the child as 'one-time' (or 'recurrence_instance'), it won't be picked up by the query above.
-                    // So, let's set the child's recurrence to 'one-time' or a specific 'recurring_instance' tag.
-                    // However, user might want to see it as "Subscription".
-                    // Let's check the schema.
-
-                    // DECISION: Set created instance as 'one-time' but tag it via source or notes.
-                    // The query `recurrence: 'monthly'` will only pick up the master entry.
-                    // Wait, if the user creates a subscription, that IS the master entry.
-                    // We don't want to create duplicates of the master entry if the user edits it?
-                    // Let's stick to: Master has 'recurrence: monthly'. Child has 'recurrence: one-time' (or just 'monthly' but we filter by creation date?)
-                    // Safest: Child has recurrence: 'one-time' and notes "Recurring Payment: ...".
-                    // OR: We update the 'source' to 'auto-recurring'.
-                    // AND our query above only fetches where source != 'auto-recurring'? 
-                    // Actually, if we set child recurrence to 'one-time', it won't be fetched by `where: { recurrence: 'monthly' }`.
-                    // This creates a clean separation: Master (Active Sub) vs History (Generated Logs).
-
-                    recurrence: 'one-time',
-                    periodTag: 'monthly',
-                    notes: `Subscription Renewal: ${expense.merchant}`,
-                    source: 'auto-recurring',
-                    confidence: 1
+                    recurrence: 'one-time', // The generated instance is not recurring itself
+                    periodTag: expense.periodTag,
+                    notes: `Auto-generated from recurring expense`,
+                    source: 'system_recurrence',
+                    // Don't copy recurrence rule to the child
+                    isRecurring: false,
                 });
 
-                this.logger.log(`Successfully processed subscription for ${expense.merchant}`);
+                // 2. Calculate next run date
+                const nextDate = this.calculateNextRunDate(
+                    expense.nextRunDate ? new Date(expense.nextRunDate) : new Date(expense.date),
+                    expense.recurrenceType || 'MONTHLY',
+                    expense.recurrenceInterval || 1,
+                    expense.recurrenceUnit || 'MONTHS',
+                );
 
+                // 3. Update the parent expense with next run date
+                await this.prisma.expense.update({
+                    where: { id: expense.id },
+                    data: {
+                        lastRunDate: new Date(),
+                        nextRunDate: nextDate,
+                    },
+                });
+
+                this.logger.log(`✅ Successfully generated recurrence for ${expense.id}. Next run: ${nextDate}`);
             } catch (error) {
-                this.logger.error(`Failed to process recurring expense ${expense.id}`, error);
+                this.logger.error(`❌ Failed to process recurring expense ${expense.id}:`, error);
             }
         }
+    }
+
+    private calculateNextRunDate(currentDate: Date, type: string, interval: number = 1, unit: string = 'MONTHS'): Date {
+        const nextDate = new Date(currentDate);
+
+        if (type === 'DAILY') {
+            nextDate.setDate(nextDate.getDate() + 1);
+        } else if (type === 'WEEKLY') {
+            nextDate.setDate(nextDate.getDate() + 7);
+        } else if (type === 'MONTHLY') {
+            nextDate.setMonth(nextDate.getMonth() + 1);
+        } else if (type === 'CUSTOM') {
+            switch (unit) {
+                case 'DAYS':
+                    nextDate.setDate(nextDate.getDate() + interval);
+                    break;
+                case 'WEEKS':
+                    nextDate.setDate(nextDate.getDate() + (interval * 7));
+                    break;
+                case 'MONTHS':
+                    nextDate.setMonth(nextDate.getMonth() + interval);
+                    break;
+                case 'YEARS':
+                    nextDate.setFullYear(nextDate.getFullYear() + interval);
+                    break;
+            }
+        }
+
+        return nextDate;
     }
 }

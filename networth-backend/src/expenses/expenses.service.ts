@@ -42,6 +42,11 @@ export class ExpensesService {
                         toBankAccountId: dto.toBankAccountId || null,
                         recurrence: dto.recurrence || 'one-time',
                         periodTag: dto.periodTag || 'monthly',
+                        isRecurring: dto.isRecurring || false,
+                        recurrenceType: dto.recurrenceType,
+                        recurrenceInterval: dto.recurrenceInterval,
+                        recurrenceUnit: dto.recurrenceUnit,
+                        nextRunDate: dto.nextRunDate ? new Date(dto.nextRunDate) : undefined,
                         notes: dto.notes,
                         source: dto.source || 'manual',
                         receiptUrl: dto.receiptUrl,
@@ -71,7 +76,7 @@ export class ExpensesService {
                     } else if (dto.creditCardId) {
                         await tx.creditCard.update({
                             where: { id: dto.creditCardId },
-                            data: { usedAmount: { decrement: amount } },
+                            data: { usedAmount: { decrement: amount } }, // Payments to CC *reduce* usedAmount
                         });
                     }
 
@@ -141,6 +146,11 @@ export class ExpensesService {
                     toBankAccountId: dto.toBankAccountId === null ? null : dto.toBankAccountId,
                     recurrence: dto.recurrence,
                     periodTag: dto.periodTag,
+                    isRecurring: dto.isRecurring,
+                    recurrenceType: dto.recurrenceType,
+                    recurrenceInterval: dto.recurrenceInterval,
+                    recurrenceUnit: dto.recurrenceUnit,
+                    nextRunDate: dto.nextRunDate ? new Date(dto.nextRunDate) : undefined,
                     notes: dto.notes,
                     source: dto.source,
                     receiptUrl: dto.receiptUrl,
