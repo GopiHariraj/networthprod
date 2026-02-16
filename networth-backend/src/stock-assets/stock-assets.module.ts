@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { StockAssetsController } from './stock-assets.controller';
 import { StockAssetsService } from './stock-assets.service';
 import { AlphaVantageService } from './alpha-vantage.service';
+import { StockPriceService } from './stock-price.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 @Module({
   controllers: [StockAssetsController],
-  providers: [StockAssetsService, AlphaVantageService, PrismaService],
+  providers: [StockAssetsService, AlphaVantageService, StockPriceService, PrismaService],
   exports: [StockAssetsService],
 })
 export class StockAssetsModule { }

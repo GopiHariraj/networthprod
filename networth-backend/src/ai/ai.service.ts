@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 
 @Injectable()
 export class AiService {
   private openai: OpenAI | null = null;
+  private readonly ADMIN_EMAIL = 'Admin@fortstec.com';
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
@@ -17,7 +18,15 @@ export class AiService {
     }
   }
 
-  async parseFinanceUpdate(text: string) {
+  private validateAdminAccess(email: string) {
+    if (!email || email.toLowerCase() !== this.ADMIN_EMAIL.toLowerCase()) {
+      throw new ForbiddenException('AI features are restricted to administrator access only.');
+    }
+  }
+
+  async parseFinanceUpdate(text: string, email: string) {
+    this.validateAdminAccess(email);
+
     if (!this.openai) {
       return this.mockParse(text);
     }
@@ -41,7 +50,7 @@ export class AiService {
       `;
 
       const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [{ role: 'user', content: prompt }],
         response_format: { type: 'json_object' }
       });
@@ -74,14 +83,15 @@ export class AiService {
     };
   }
 
-  async executeUpdates(data: any) {
+  async executeUpdates(data: any, email: string) {
+    this.validateAdminAccess(email);
     // Logic to actually update DB would go here
-    // For now, we return success as we might need to implement the actual DB writes later
-    // or assume the frontend calls specific endpoints based on this data.
     return { success: true, message: 'Updates processed successfully' };
   }
 
-  async chat(message: string, context: any) {
+  async chat(message: string, context: any, email: string) {
+    this.validateAdminAccess(email);
+
     if (!this.openai) {
       return {
         text: "I'm sorry, but I haven't been configured with an API key yet. Please check your settings.",
@@ -111,7 +121,7 @@ export class AiService {
         8. Maintain a helpful and objective tone.
         
         RESPONSE FORMAT:
-        Just return the markdown response directly.
+        Just return the text content directly (markdown supported).
       `;
 
       const completion = await this.openai.chat.completions.create({

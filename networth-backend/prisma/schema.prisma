@@ -209,19 +209,21 @@ model GoldAsset {
 }
 
 model StockAsset {
-  id            String   @id @default(uuid())
-  userId        String
-  symbol        String   // AAPL, RELIANCE.NS
-  name          String   // Apple Inc., Reliance Industries
-  exchange      String   // NASDAQ, NSE
-  quantity      Decimal  @db.Decimal(15, 4)
-  avgPrice      Decimal  @db.Decimal(15, 2)
-  currentPrice  Decimal  @db.Decimal(15, 2)
-  currency      String   @default("AED")
-  broker        String?
-  notes         String?  @db.Text
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                    String   @id @default(uuid())
+  userId                String
+  symbol                String   // AAPL, RELIANCE.NS
+  name                  String   // Apple Inc., Reliance Industries
+  exchange              String   // NASDAQ, NSE
+  quantity              Decimal  @db.Decimal(15, 4)
+  avgPrice              Decimal  @db.Decimal(15, 2)
+  currentPrice          Decimal  @db.Decimal(15, 2)
+  currency              String   @default("AED")
+  currentPriceCurrency  String?  @default("USD") // Currency of currentPrice (USD, INR, etc.)
+  lastPriceUpdate       DateTime? // When price was last refreshed
+  broker                String?
+  notes                 String?  @db.Text
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  StockTransaction[]

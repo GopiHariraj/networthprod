@@ -57,7 +57,7 @@ export class StockAssetsController {
 
   @Post('refresh-all-prices')
   refreshAllPrices(@Request() req: any) {
-    return this.stockAssetsService.refreshAllPrices(req.user.id);
+    return this.stockAssetsService.refreshAllPrices(req.user.id, req.user.email);
   }
 
   @Delete(':id')

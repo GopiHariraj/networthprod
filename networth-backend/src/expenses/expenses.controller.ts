@@ -52,13 +52,13 @@ export class ExpensesController {
   }
 
   @Post('ai-parse-text')
-  async parseExpenseText(@Body() body: { text: string }) {
+  async parseExpenseText(@Body() body: { text: string }, @Request() req: any) {
     if (!body.text || body.text.trim().length === 0) {
       return { error: 'Text is required' };
     }
 
     try {
-      const result = await this.geminiService.parseExpenseText(body.text);
+      const result = await this.geminiService.parseExpenseText(body.text, req.user.email);
       return result;
     } catch (error) {
       return {

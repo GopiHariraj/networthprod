@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useCurrency } from '../../lib/currency-context';
 import { useNetWorth } from '../../lib/networth-context';
+import { useAuth } from '../../lib/auth-context';
 import { financialDataApi } from '../../lib/api/financial-data';
+import { stockAssetsApi } from '../../lib/api/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 
 interface StockTransaction {
@@ -31,6 +33,7 @@ interface Stock {
 export default function StocksPage() {
     const { currency, convert, convertRaw } = useCurrency();
     const { data, refreshNetWorth } = useNetWorth();
+    const { user } = useAuth();
     const [stocks, setStocks] = useState<Stock[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('Holdings');
@@ -78,6 +81,14 @@ export default function StocksPage() {
             setLoading(false);
         }
     }, [data.assets.stocks.items]);
+
+    // Auto-refresh prices on mount for admin
+    useEffect(() => {
+        if (user?.email === 'Admin@fortstec.com' && stocks.length > 0 && !lastPriceUpdate) {
+            console.log('[StocksPage] Auto-refreshing prices for admin on mount');
+            handleRefreshAllPrices();
+        }
+    }, [stocks.length, user?.email]);
 
     const handleEdit = (stock: Stock) => {
         setEditingId(stock.id);
@@ -175,10 +186,11 @@ export default function StocksPage() {
     const handleRefreshAllPrices = async () => {
         setRefreshingPrices(true);
         try {
-            const response = await financialDataApi.stockAssets.refreshAllPrices();
+            const response = await stockAssetsApi.refreshPrices();
             await refreshNetWorth();
             setLastPriceUpdate(new Date());
-            alert(`✅ ${response.data.message || 'Prices updated successfully'}`);
+            const data = response.data;
+            alert(`✅ ${data.message || 'Prices updated successfully'}\n${data.errors ? `\nErrors:\n${data.errors.join('\n')}` : ''}`);
         } catch (error: any) {
             const message = error.response?.data?.message || 'Failed to refresh prices. Please try again.';
             alert(`❌ ${message}`);

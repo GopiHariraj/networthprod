@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState } from 'react';
+import useSWR from 'swr';
+import ReactMarkdown from 'react-markdown';
 import { useCurrency } from '../../lib/currency-context';
 import { useNetWorth } from '../../lib/networth-context';
-import { aiApi } from '../../lib/api/client';
+import { aiApi, apiClient } from '../../lib/api/client';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface Message {
@@ -30,7 +32,11 @@ const PRESET_QUESTIONS = [
     { id: 5, text: "Show monthly EMI total and split by loan/card", icon: "💳" },
     { id: 6, text: "Compare cash vs investments over time", icon: "💰" },
     { id: 7, text: "Which category increased the most this month?", icon: "🔝" },
-    { id: 8, text: "Show top 5 accounts by value", icon: "🏆" }
+    { id: 8, text: "Show top 5 accounts by value", icon: "🏆" },
+    { id: 9, text: "What are my top expense categories?", icon: "💸" },
+    { id: 10, text: "Show my recurring expenses breakdown", icon: "🔄" },
+    { id: 11, text: "What's my average monthly spending?", icon: "📉" },
+    { id: 12, text: "Which expenses can I reduce?", icon: "✂️" }
 ];
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
@@ -41,6 +47,11 @@ export default function AIAnalyticsPage() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputMessage, setInputMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+
+    // Fetch expense data
+    const { data: expensesResponse } = useSWR('/expenses', () => apiClient.get('/expenses'));
+    const expenses = expensesResponse?.data || [];
+
 
     // Real insights from NetWorthContext
     const insights = {
@@ -150,8 +161,22 @@ export default function AIAnalyticsPage() {
             const presetQuestion = PRESET_QUESTIONS.find(q => q.text === messageText);
             const chart = presetQuestion ? generateRealChart(presetQuestion.id) : undefined;
 
+            // Prepare context with networth and expense data
+            const contextData = {
+                networth: networthData,
+                expenses: expenses.map((exp: any) => ({
+                    id: exp.id,
+                    amount: exp.amount,
+                    category: exp.category,
+                    description: exp.description,
+                    date: exp.date,
+                    isRecurring: exp.isRecurring,
+                    recurrenceFrequency: exp.recurrenceFrequency
+                }))
+            };
+
             // Get AI response
-            const response = await aiApi.chat(messageText, networthData);
+            const response = await aiApi.chat(messageText, contextData);
 
             const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),
@@ -299,7 +324,30 @@ export default function AIAnalyticsPage() {
                                         <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                             <div className={`max-w-3xl ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'} rounded-2xl p-4`}>
                                                 <div className="text-sm font-semibold mb-1">{message.role === 'user' ? 'You' : '🤖 AI Assistant'}</div>
-                                                <div className="text-sm">{message.content}</div>
+                                                {message.role === 'assistant' ? (
+                                                    <div className="prose prose-sm max-w-none text-slate-900 dark:text-slate-100">
+                                                        <ReactMarkdown
+                                                            components={{
+                                                                h1: ({ node, ...props }) => <h1 className="text-2xl font-bold mt-6 mb-3 pb-2 border-b-2 border-blue-500 text-slate-900 dark:text-white" {...props} />,
+                                                                h2: ({ node, ...props }) => <h2 className="text-xl font-bold mt-5 mb-2 text-blue-600 dark:text-blue-400" {...props} />,
+                                                                h3: ({ node, ...props }) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-800 dark:text-slate-200" {...props} />,
+                                                                p: ({ node, ...props }) => <p className="mb-3 leading-relaxed text-slate-700 dark:text-slate-300" {...props} />,
+                                                                ul: ({ node, ...props }) => <ul className="list-disc ml-6 mb-3 space-y-2 text-slate-700 dark:text-slate-300" {...props} />,
+                                                                ol: ({ node, ...props }) => <ol className="list-decimal ml-6 mb-3 space-y-2 text-slate-700 dark:text-slate-300" {...props} />,
+                                                                li: ({ node, ...props }) => <li className="leading-relaxed pl-1" {...props} />,
+                                                                strong: ({ node, ...props }) => <strong className="font-bold text-slate-900 dark:text-white" {...props} />,
+                                                                em: ({ node, ...props }) => <em className="italic text-slate-800 dark:text-slate-200" {...props} />,
+                                                                code: ({ node, ...props }) => <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm font-mono text-blue-800 dark:text-blue-200" {...props} />,
+                                                                blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-blue-500 pl-4 py-2 my-3 bg-blue-50 dark:bg-blue-900/20 italic text-slate-700 dark:text-slate-300" {...props} />,
+                                                                hr: ({ node, ...props }) => <hr className="my-4 border-slate-300 dark:border-slate-600" {...props} />,
+                                                            }}
+                                                        >
+                                                            {message.content}
+                                                        </ReactMarkdown>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-sm">{message.content}</div>
+                                                )}
                                                 {message.chart && (
                                                     <div className="mt-4 bg-white dark:bg-slate-800 rounded-xl p-4">
                                                         <h4 className="font-bold text-slate-900 dark:text-white mb-3">{message.chart.title}</h4>

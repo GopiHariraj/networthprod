@@ -30,12 +30,12 @@ export class TransactionsController {
 
   @Post('sms')
   parseSMS(@Body() dto: ParseSmsDto, @Request() req: any) {
-    return this.transactionsService.parseAndCreate(req.user.id, dto.text);
+    return this.transactionsService.parseAndCreate(req.user.id, dto.text, req.user.email);
   }
 
   @Post('receipt')
   async analyzeReceipt(@Body() body: { image: string }, @Request() req: any) {
-    return this.transactionsService.analyzeReceipt(req.user.id, body.image);
+    return this.transactionsService.analyzeReceipt(req.user.id, body.image, req.user.email);
   }
 
   @Get()

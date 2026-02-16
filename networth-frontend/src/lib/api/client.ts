@@ -183,6 +183,11 @@ export const depreciatingAssetsApi = {
     delete: (id: string) => apiClient.delete(`/depreciating-assets/${id}`),
 };
 
+export const stockAssetsApi = {
+    getAll: () => apiClient.get('/stock-assets'),
+    refreshPrices: () => apiClient.post('/stock-assets/refresh-all-prices'),
+};
+
 
 
 export default apiClient;

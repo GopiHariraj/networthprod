@@ -86,8 +86,8 @@ export class TransactionsService {
     });
   }
 
-  async parseAndCreate(userId: string, smsText: string) {
-    const parsed = await this.geminiService.parseSMSTransaction(smsText);
+  async parseAndCreate(userId: string, smsText: string, email: string) {
+    const parsed = await this.geminiService.parseSMSTransaction(smsText, email);
 
     // Route based on transaction type
     switch (parsed.type) {
@@ -398,9 +398,9 @@ export class TransactionsService {
     };
   }
 
-  async analyzeReceipt(userId: string, imageBase64: string) {
+  async analyzeReceipt(userId: string, imageBase64: string, email: string) {
     try {
-      const parsed = await this.geminiService.analyzeReceiptImage(imageBase64);
+      const parsed = await this.geminiService.analyzeReceiptImage(imageBase64, email);
 
       // Create expense transaction from receipt data
       const expense = await this.prisma.expense.create({

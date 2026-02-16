@@ -1,46 +1,32 @@
-import { Injectable } from '@nestjs/common';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { Injectable, ForbiddenException } from '@nestjs/common';
+import OpenAI from 'openai';
 
 @Injectable()
 export class GeminiService {
-    private genAI: GoogleGenerativeAI | null = null;
-    private model: any = null;
+    private openai: OpenAI | null = null;
+    private readonly ADMIN_EMAIL = 'Admin@fortstec.com';
 
     constructor() {
-        // Only initialize Gemini if API key is available
-        if (process.env.GEMINI_API_KEY) {
-            this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            const modelName = 'gemini-1.5-flash';
-            console.log(`[GeminiService] Initializing with model: ${modelName} (API version: v1)`);
-            // Explicitly set API version to v1 to avoid v1beta issues
-            this.model = this.genAI.getGenerativeModel(
-                { model: modelName },
-                { apiVersion: 'v1' }
-            );
-
-            // Log available models for debugging (async, don't block)
-            this.listAvailableModels();
+        if (process.env.OPENAI_API_KEY) {
+            this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+            console.log('[GeminiService] Initialized with OpenAI API (Replacing Gemini)');
+        } else {
+            console.warn('[GeminiService] OpenAI API key not found');
         }
     }
 
-    private async listAvailableModels() {
-        try {
-            // Note: listModels is on the genAI instance
-            // But sometimes it requires special permissions.
-            // Let's just try a simple check.
-            console.log('[GeminiService] Checking model availability...');
-        } catch (e) {
-            console.warn('[GeminiService] Could not list models:', e.message);
+    private validateAdminAccess(email: string) {
+        if (!email || email.toLowerCase() !== this.ADMIN_EMAIL.toLowerCase()) {
+            throw new ForbiddenException('AI features are restricted to administrator access only.');
         }
     }
 
-    async parseExpenseText(text: string): Promise<any> {
-        try {
-            const apiKey = process.env.GEMINI_API_KEY;
+    async parseExpenseText(text: string, email: string): Promise<any> {
+        this.validateAdminAccess(email);
 
-            if (!apiKey || !this.model) {
-                // Fallback to mock parser when Gemini is not configured
-                console.log('Gemini API key not found, using mock parser');
+        try {
+            if (!this.openai) {
+                console.log('OpenAI API key not found, using mock parser');
                 return this.mockParseExpenseText(text);
             }
 
@@ -66,22 +52,18 @@ Return format (ONLY valid JSON, no markdown):
 }
 
 Text to parse: "${text}"
-
-Return ONLY the JSON object, no extra text or markdown.
 `;
 
-            const result = await this.model.generateContent(prompt);
-            const response = await result.response;
-            let jsonText = response.text();
+            const completion = await this.openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: prompt }],
+                response_format: { type: 'json_object' }
+            });
 
-            // Clean up markdown code blocks if present
-            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-            const parsed = JSON.parse(jsonText);
-            return parsed;
+            const content = completion.choices[0]?.message?.content || '{}';
+            return JSON.parse(content);
         } catch (error) {
-            console.error('Gemini API error:', error);
-            // Fallback to mock parser if Gemini fails
+            console.error('OpenAI API error:', error);
             return this.mockParseExpenseText(text);
         }
     }
@@ -154,12 +136,12 @@ Return ONLY the JSON object, no extra text or markdown.
         };
     }
 
-    async parseSMSTransaction(smsText: string): Promise<any> {
-        try {
-            const apiKey = process.env.GEMINI_API_KEY;
+    async parseSMSTransaction(smsText: string, email: string): Promise<any> {
+        this.validateAdminAccess(email);
 
-            if (!apiKey || !this.model) {
-                console.log('Gemini API key not found, using mock SMS parser');
+        try {
+            if (!this.openai) {
+                console.log('OpenAI API key not found, using mock SMS parser');
                 return this.mockParseSMS(smsText);
             }
 
@@ -203,28 +185,27 @@ SMS: "${smsText}"
 Return ONLY the JSON object.
 `;
 
-            const result = await this.model.generateContent(prompt);
-            const response = await result.response;
-            let jsonText = response.text();
+            const completion = await this.openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: prompt }],
+                response_format: { type: 'json_object' }
+            });
 
-            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-            return JSON.parse(jsonText);
+            const content = completion.choices[0]?.message?.content || '{}';
+            return JSON.parse(content);
         } catch (error) {
-            console.error('Gemini SMS parse error:', error);
+            console.error('OpenAI SMS parse error:', error);
             return this.mockParseSMS(smsText);
         }
     }
 
-    async analyzeReceiptImage(imageBase64: string): Promise<any> {
+    async analyzeReceiptImage(imageBase64: string, email: string): Promise<any> {
+        this.validateAdminAccess(email);
+
         try {
-            const apiKey = process.env.GEMINI_API_KEY;
-
-            if (!apiKey || !this.genAI) {
-                throw new Error('Gemini API key required for image analysis');
+            if (!this.openai) {
+                throw new Error('OpenAI API key required for image analysis');
             }
-
-            const visionModel = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
             const prompt = `
 Analyze this receipt image and extract all transaction details. Return ONLY valid JSON.
@@ -246,26 +227,26 @@ Extract:
   "paymentMethod": "cash" | "card",
   "confidence": 0.0-1.0
 }
-
-Return ONLY the JSON object.
 `;
 
-            const imageParts = {
-                inlineData: {
-                    data: imageBase64.replace(/^data:image\/\w+;base64,/, ''),
-                    mimeType: 'image/jpeg'
-                }
-            };
+            const completion = await this.openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: prompt },
+                            { type: 'image_url', image_url: { url: imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}` } }
+                        ]
+                    }
+                ],
+                response_format: { type: 'json_object' }
+            });
 
-            const result = await visionModel.generateContent([prompt, imageParts]);
-            const response = await result.response;
-            let jsonText = response.text();
-
-            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-            return JSON.parse(jsonText);
+            const content = completion.choices[0]?.message?.content || '{}';
+            return JSON.parse(content);
         } catch (error) {
-            console.error('Gemini Vision error:', error);
+            console.error('OpenAI Vision error:', error);
             throw new Error('Receipt analysis failed. Please ensure image is clear and try again.');
         }
     }
@@ -316,23 +297,5 @@ Return ONLY the JSON object.
         }
 
         return result;
-    }
-
-    /**
-     * Generic content generation method
-     */
-    async generateContent(prompt: string): Promise<string> {
-        try {
-            if (!this.model) {
-                throw new Error('Gemini API key not configured');
-            }
-
-            const result = await this.model.generateContent(prompt);
-            const response = await result.response;
-            return response.text();
-        } catch (error) {
-            console.error('Gemini generateContent error:', error);
-            throw error;
-        }
     }
 }

@@ -5,12 +5,14 @@ import {
   UpdateStockAssetDto,
 } from './dto/stock-asset.dto';
 import { AlphaVantageService } from './alpha-vantage.service';
+import { StockPriceService } from './stock-price.service';
 
 @Injectable()
 export class StockAssetsService {
   constructor(
     private prisma: PrismaService,
     private alphaVantageService: AlphaVantageService,
+    private stockPriceService: StockPriceService,
   ) { }
 
   async findAll(userId: string) {
@@ -152,7 +154,7 @@ export class StockAssetsService {
     }
   }
 
-  async refreshAllPrices(userId: string) {
+  async refreshAllPrices(userId: string, userEmail: string) {
     const assets = await this.prisma.stockAsset.findMany({
       where: { userId },
     });
@@ -161,21 +163,34 @@ export class StockAssetsService {
       return { message: 'No stocks to refresh', updated: 0 };
     }
 
-    const symbols = assets.map(a => a.symbol);
-    const prices = await this.alphaVantageService.getBatchQuotes(symbols);
-
     let updated = 0;
+    const errors: string[] = [];
+    const now = new Date();
+
     for (const asset of assets) {
-      const newPrice = prices.get(asset.symbol);
-      if (newPrice) {
-        await this.prisma.stockAsset.update({
-          where: { id: asset.id },
-          data: {
-            currentPrice: newPrice,
-            currency: 'USD',
-          },
-        });
-        updated++;
+      try {
+        const priceData = await this.stockPriceService.fetchStockPrice(
+          asset.symbol,
+          asset.exchange || '',
+          userEmail
+        );
+
+        if (priceData) {
+          await this.prisma.stockAsset.update({
+            where: { id: asset.id },
+            data: {
+              currentPrice: priceData.price,
+              currentPriceCurrency: priceData.currency,
+              lastPriceUpdate: now,
+            },
+          });
+          console.log(`[StockAssetsService] Updated ${asset.symbol}: ${priceData.price} ${priceData.currency}`);
+          updated++;
+        } else {
+          errors.push(`${asset.symbol}: Failed to fetch price`);
+        }
+      } catch (error) {
+        errors.push(`${asset.symbol}: ${error.message}`);
       }
     }
 
@@ -183,6 +198,7 @@ export class StockAssetsService {
       message: `Successfully updated ${updated} out of ${assets.length} stocks`,
       updated,
       total: assets.length,
+      errors: errors.length > 0 ? errors : undefined,
     };
   }
 
