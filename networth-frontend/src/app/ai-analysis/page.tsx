@@ -52,6 +52,14 @@ export default function AIAnalyticsPage() {
     const { data: expensesResponse } = useSWR('/expenses', () => apiClient.get('/expenses'));
     const expenses = expensesResponse?.data || [];
 
+    // Fetch goals
+    const { data: goalsResponse } = useSWR('/goals', () => apiClient.get('/goals'));
+    const goals = goalsResponse?.data || [];
+
+    // Fetch todos
+    const { data: todosResponse } = useSWR('/todo', () => apiClient.get('/todo'));
+    const todos = todosResponse?.data || [];
+
 
     // Real insights from NetWorthContext
     const insights = {
@@ -172,6 +180,21 @@ export default function AIAnalyticsPage() {
                     date: exp.date,
                     isRecurring: exp.isRecurring,
                     recurrenceFrequency: exp.recurrenceFrequency
+                })),
+                goals: goals.map((goal: any) => ({
+                    id: goal.id,
+                    name: goal.name,
+                    targetAmount: goal.targetAmount,
+                    currentAmount: goal.currentAmount,
+                    deadline: goal.deadline,
+                    category: goal.category
+                })),
+                todos: todos.map((todo: any) => ({
+                    id: todo.id,
+                    task: todo.task,
+                    isCompleted: todo.isCompleted,
+                    dueDate: todo.dueDate,
+                    priority: todo.priority
                 }))
             };
 
