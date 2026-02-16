@@ -146,9 +146,18 @@ export class AiService {
         Use this structure unless the user asks for something different:
         A) Direct Answer (required)
         Provide the single most relevant number/result first.
-        B) Supporting Details (optional, small)
+        B) Structured Data (Required for Lists)
+        If the answer involves a list of items (e.g., stocks, transactions, goals), YOU MUST USE A MARKDOWN TABLE.
+        DO NOT output lists as a single inline paragraph.
+        Example Table Format:
+        | Name | Quantity | Value |
+        | --- | --- | --- |
+        | Stock A | 10 | AED 500 |
+        | Stock B | 5 | AED 250 |
+
+        C) Supporting Details (optional, small)
         Only include if it helps explain the answer (max 3 bullets).
-        C) Next Step (optional)
+        D) Next Step (optional)
         Ask one short follow-up suggestion only if useful.
 
         4) Strict Output Limits (Prevents Data Dump)
