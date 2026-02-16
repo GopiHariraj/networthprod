@@ -90,7 +90,7 @@ export class AiService {
     return { success: true, message: 'Updates processed successfully' };
   }
 
-  async chat(message: string, context: any, email: string) {
+  async chat(message: string, context: any, email: string, history: any[] = []) {
     this.validateAdminAccess(email);
 
     if (!this.openai) {
@@ -101,7 +101,7 @@ export class AiService {
     }
 
     try {
-      const prompt = `
+      const systemPrompt = `
         You are NETAPP Finance Analyst, an AI assistant inside a personal finance application.
         You have access to the user’s local financial data (transactions, accounts, cards, cash, budgets, assets, liabilities, goals).
         Your job is to provide precise, minimal, structured answers based on the user’s question.
@@ -186,9 +186,16 @@ export class AiService {
         Just return the text content directly (markdown supported).
       `;
 
+      // Construct messages array with history
+      const messages: any[] = [
+        { role: 'system', content: systemPrompt },
+        ...history.map(msg => ({ role: msg.role, content: msg.content })),
+        { role: 'user', content: message }
+      ];
+
       const completion = await this.openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
+        messages: messages,
       });
 
       const responseText = completion.choices[0]?.message?.content || "I'm having trouble processing your request.";

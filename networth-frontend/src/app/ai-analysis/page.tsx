@@ -198,8 +198,9 @@ export default function AIAnalyticsPage() {
                 }))
             };
 
-            // Get AI response
-            const response = await aiApi.chat(messageText, contextData);
+            // Get AI response with history
+            const history = messages.map(m => ({ role: m.role, content: m.content }));
+            const response = await aiApi.chat(messageText, contextData, history);
 
             const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),

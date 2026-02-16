@@ -173,7 +173,7 @@ export const transactionsApi = {
 };
 
 export const aiApi = {
-    chat: (message: string, context: any) => apiClient.post('/ai/chat', { message, context }),
+    chat: (message: string, context: any, history?: any[]) => apiClient.post('/ai/chat', { message, context, history }),
 };
 
 export const depreciatingAssetsApi = {

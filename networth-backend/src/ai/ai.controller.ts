@@ -20,7 +20,7 @@ export class AiController {
 
   @Post('chat')
   @UseGuards(JwtAuthGuard)
-  async chat(@Body() body: { message: string, context: any }, @Request() req: any) {
-    return this.aiService.chat(body.message, body.context, req.user.email);
+  async chat(@Body() body: { message: string, context: any, history?: any[] }, @Request() req: any) {
+    return this.aiService.chat(body.message, body.context, req.user.email, body.history);
   }
 }
