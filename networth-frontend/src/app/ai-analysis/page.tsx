@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import useSWR from 'swr';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useCurrency } from '../../lib/currency-context';
 import { useNetWorth } from '../../lib/networth-context';
 import { aiApi, apiClient } from '../../lib/api/client';
@@ -351,6 +352,7 @@ export default function AIAnalyticsPage() {
                                                 {message.role === 'assistant' ? (
                                                     <div className="prose prose-sm max-w-none text-slate-900 dark:text-slate-100">
                                                         <ReactMarkdown
+                                                            remarkPlugins={[remarkGfm]}
                                                             components={{
                                                                 h1: ({ node, ...props }) => <h1 className="text-2xl font-bold mt-6 mb-3 pb-2 border-b-2 border-blue-500 text-slate-900 dark:text-white" {...props} />,
                                                                 h2: ({ node, ...props }) => <h2 className="text-xl font-bold mt-5 mb-2 text-blue-600 dark:text-blue-400" {...props} />,
@@ -364,6 +366,13 @@ export default function AIAnalyticsPage() {
                                                                 code: ({ node, ...props }) => <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm font-mono text-blue-800 dark:text-blue-200" {...props} />,
                                                                 blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-blue-500 pl-4 py-2 my-3 bg-blue-50 dark:bg-blue-900/20 italic text-slate-700 dark:text-slate-300" {...props} />,
                                                                 hr: ({ node, ...props }) => <hr className="my-4 border-slate-300 dark:border-slate-600" {...props} />,
+                                                                // Table components
+                                                                table: ({ node, ...props }) => <div className="overflow-x-auto my-4 rounded-lg border border-slate-200 dark:border-slate-700"><table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700 text-sm" {...props} /></div>,
+                                                                thead: ({ node, ...props }) => <thead className="bg-slate-50 dark:bg-slate-800" {...props} />,
+                                                                tbody: ({ node, ...props }) => <tbody className="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900" {...props} />,
+                                                                tr: ({ node, ...props }) => <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" {...props} />,
+                                                                th: ({ node, ...props }) => <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white uppercase tracking-wider text-xs" {...props} />,
+                                                                td: ({ node, ...props }) => <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-nowrap" {...props} />,
                                                             }}
                                                         >
                                                             {message.content}
