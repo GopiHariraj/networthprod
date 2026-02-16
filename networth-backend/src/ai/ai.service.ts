@@ -6,6 +6,7 @@ import OpenAI from 'openai';
 export class AiService {
   private openai: OpenAI | null = null;
   private readonly ADMIN_EMAIL = 'Admin@fortstec.com';
+  private readonly ALLOWED_EMAILS = ['sunto2@gmail.com', 'admin@fortstec.com'];
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
@@ -19,7 +20,7 @@ export class AiService {
   }
 
   private validateAdminAccess(email: string) {
-    if (!email || email.toLowerCase() !== this.ADMIN_EMAIL.toLowerCase()) {
+    if (!email || !this.ALLOWED_EMAILS.some(allowed => allowed.toLowerCase() === email.toLowerCase())) {
       throw new ForbiddenException('AI features are restricted to administrator access only.');
     }
   }
