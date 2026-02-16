@@ -41,6 +41,7 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL}
       FRONTEND_URL: ${FRONTEND_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     ports:
       - "${BACKEND_PORT:-3001}:3001"
     volumes:
@@ -51,7 +52,7 @@ services:
         condition: service_healthy
     networks:
       - networth-network
-    command: npm run start:dev
+    command: sh -c "npm install && npx prisma generate && npm run start:dev"
 
   # Frontend (Next.js)
   frontend:
