@@ -27,6 +27,7 @@ interface Stock {
     currentPrice: number;
     currency: string;
     transactions: StockTransaction[];
+    broker?: string;
     notes?: string;
 }
 
@@ -44,6 +45,12 @@ export default function StocksPage() {
     const [refreshingPrices, setRefreshingPrices] = useState(false);
     const [lastPriceUpdate, setLastPriceUpdate] = useState<Date | null>(null);
 
+    const [addAssetTab, setAddAssetTab] = useState<'Single' | 'Bulk'>('Single');
+    const [bulkFile, setBulkFile] = useState<File | null>(null);
+    const [bulkPreview, setBulkPreview] = useState<any[]>([]);
+    const [bulkErrors, setBulkErrors] = useState<string[]>([]);
+    const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+
     const [formData, setFormData] = useState({
         symbol: '',
         name: '',
@@ -51,7 +58,10 @@ export default function StocksPage() {
         quantity: '',
         avgPrice: '',
         currentPrice: '',
-        currency: 'AED'
+        currency: 'AED',
+        broker: '',
+        defaultBrokerageType: 'FLAT',
+        defaultBrokerageValue: '0'
     });
 
     const [txFormData, setTxFormData] = useState({
@@ -73,10 +83,12 @@ export default function StocksPage() {
                 avgPrice: parseFloat(s.avgPrice) || 0,
                 currentPrice: parseFloat(s.currentPrice) || 0,
                 currency: s.currency || 'AED',
-                transactions: s.transactions || []
+                transactions: s.transactions || [],
+                broker: s.broker || '',
+                defaultBrokerageType: s.defaultBrokerageType || 'FLAT',
+                defaultBrokerageValue: parseFloat(s.defaultBrokerageValue) || 0
             }));
             console.log('[StocksPage] Loaded stocks:', stocksData);
-            console.log('[StocksPage] Stock currencies:', stocksData.map(s => `${s.symbol}: ${s.currency}`));
             setStocks(stocksData);
             setLoading(false);
         }
@@ -90,7 +102,7 @@ export default function StocksPage() {
         }
     }, [stocks.length, user?.email]);
 
-    const handleEdit = (stock: Stock) => {
+    const handleEdit = (stock: Stock & { defaultBrokerageType?: string; defaultBrokerageValue?: number }) => {
         setEditingId(stock.id);
         setFormData({
             symbol: stock.symbol,
@@ -99,9 +111,13 @@ export default function StocksPage() {
             quantity: stock.quantity.toString(),
             avgPrice: stock.avgPrice.toString(),
             currentPrice: stock.currentPrice.toString(),
-            currency: stock.currency || 'AED'
+            currency: stock.currency || 'AED',
+            broker: stock.broker || '',
+            defaultBrokerageType: stock.defaultBrokerageType || 'FLAT',
+            defaultBrokerageValue: (stock.defaultBrokerageValue || 0).toString()
         });
         setActiveTab('Add Asset');
+        setAddAssetTab('Single');
     };
 
     const handleAddStock = async (e: React.FormEvent) => {
@@ -113,7 +129,10 @@ export default function StocksPage() {
                 quantity: parseFloat(formData.quantity),
                 avgPrice: parseFloat(formData.avgPrice),
                 currentPrice: parseFloat(formData.currentPrice || formData.avgPrice),
-                currency: formData.currency
+                currency: formData.currency,
+                broker: formData.broker,
+                defaultBrokerageType: formData.defaultBrokerageType,
+                defaultBrokerageValue: parseFloat(formData.defaultBrokerageValue)
             };
 
             if (editingId) {
@@ -131,7 +150,10 @@ export default function StocksPage() {
                 quantity: '',
                 avgPrice: '',
                 currentPrice: '',
-                currency: 'AED'
+                currency: 'AED',
+                broker: '',
+                defaultBrokerageType: 'FLAT',
+                defaultBrokerageValue: '0'
             });
             setActiveTab('Holdings');
         } catch (error) {
@@ -142,14 +164,99 @@ export default function StocksPage() {
         }
     };
 
+    // Bulk Upload Handlers
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setBulkFile(file);
+            parseCSV(file);
+        }
+    };
+
+    const parseCSV = (file: File) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target?.result as string;
+            const lines = text.split('\n');
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+
+            const requiredFields = ['symbol', 'quantity', 'price'];
+            const missing = requiredFields.filter(f => !headers.includes(f));
+
+            if (missing.length > 0) {
+                setBulkErrors([`Missing required columns: ${missing.join(', ')}`]);
+                setBulkPreview([]);
+                return;
+            }
+
+            const preview = [];
+            const errors = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const values = lines[i].split(',').map(v => v.trim());
+                const row: any = {};
+                headers.forEach((h, idx) => row[h] = values[idx]);
+
+                // Basic validation
+                if (!row.symbol) errors.push(`Row ${i + 1}: Symbol is missing`);
+                if (isNaN(parseFloat(row.quantity))) errors.push(`Row ${i + 1}: Invalid quantity`);
+                if (isNaN(parseFloat(row.price))) errors.push(`Row ${i + 1}: Invalid price`);
+
+                preview.push({
+                    symbol: row.symbol?.toUpperCase(),
+                    name: row.name || row.symbol,
+                    exchange: row.exchange || 'NASDAQ',
+                    quantity: parseFloat(row.quantity),
+                    avgPrice: parseFloat(row.price),
+                    currentPrice: parseFloat(row.current_price || row.price),
+                    currency: row.currency || 'USD',
+                    broker: row.broker || row.platform || row.broker_name || '',
+                    defaultBrokerageType: row.brokerage_type || 'FLAT',
+                    defaultBrokerageValue: parseFloat(row.brokerage_value || '0')
+                });
+            }
+
+            setBulkPreview(preview);
+            setBulkErrors(errors);
+        };
+        reader.readAsText(file);
+    };
+
+    const handleBulkSubmit = async () => {
+        if (bulkErrors.length > 0) return;
+        setIsBulkProcessing(true);
+        try {
+            const response = await (financialDataApi.stockAssets as any).bulkCreate(bulkPreview);
+            alert(`Bulk upload complete!\nSuccess: ${response.data.success}\nFailed: ${response.data.failed}\n${response.data.errors.length ? 'Errors:\n' + response.data.errors.join('\n') : ''}`);
+            await refreshNetWorth();
+            setBulkFile(null);
+            setBulkPreview([]);
+            setActiveTab('Holdings');
+        } catch (error) {
+            console.error('Bulk upload failed:', error);
+            alert('Failed to submit bulk data.');
+        } finally {
+            setIsBulkProcessing(false);
+        }
+    };
+
+    const handleDownloadTemplate = () => {
+        const headers = ['symbol,name,exchange,quantity,price,current_price,currency,broker,brokerage_type,brokerage_value'];
+        const example = 'AAPL,Apple Inc.,NASDAQ,10,150.50,155.00,USD,Zerodha,FLAT,10';
+        const blob = new Blob([[headers, example].join('\n')], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'stock_import_template.csv';
+        a.click();
+    };
+
     const handleAddTransaction = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedStock) return;
         setIsSubmitting(true);
         try {
-            // This is a custom endpoint we're assuming for the new transaction logic
-            // Since we updated the service, we might need to expose it in the controller if not already
-            // For now, we'll try to use a patch or a specific transaction endpoint
             await (financialDataApi.stockAssets as any).addTransaction?.(selectedStock.id, {
                 ...txFormData,
                 quantity: parseFloat(txFormData.quantity),
@@ -203,10 +310,6 @@ export default function StocksPage() {
     const totalCostBasis = stocks.reduce((sum, s) => sum + convertRaw(s.quantity * s.avgPrice, s.currency, 'AED'), 0);
     const totalGainLoss = totalMarketValue - totalCostBasis;
     const gainPercent = totalCostBasis > 0 ? (totalGainLoss / totalCostBasis) * 100 : 0;
-
-    console.log('[StocksPage] User selected currency:', currency.code);
-    console.log('[StocksPage] Total market value (AED):', totalMarketValue);
-    console.log('[StocksPage] Converting to display currency:', convert(totalMarketValue, 'AED'));
 
     const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
 
@@ -289,22 +392,19 @@ export default function StocksPage() {
                                     <thead className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
                                         <tr>
                                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Asset</th>
+                                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Platform</th>
                                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Units</th>
                                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Avg Price</th>
                                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Current Price</th>
                                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Market Value</th>
+                                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Fees</th>
                                             <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                        {stocks.map((s) => {
-                                            // Convert prices to user's selected currency FIRST
+                                        {stocks.map((s: any) => {
                                             const convertedAvgPrice = convert(s.avgPrice, s.currency);
                                             const convertedCurrentPrice = convert(s.currentPrice, s.currency);
-
-                                            console.log(`[StocksPage] ${s.symbol}: Original price ${s.currentPrice} ${s.currency} -> Converted ${convertedCurrentPrice} ${currency.code}`);
-
-                                            // Then calculate market value and cost basis in converted currency
                                             const mv = s.quantity * convertedCurrentPrice;
                                             const cb = s.quantity * convertedAvgPrice;
                                             const gl = mv - cb;
@@ -316,6 +416,9 @@ export default function StocksPage() {
                                                         <div className="font-bold text-slate-900 dark:text-white uppercase">{s.symbol || 'STOCK'}</div>
                                                         <div className="text-xs text-slate-500 truncate max-w-[150px]">{s.name}</div>
                                                         <div className="text-[10px] text-indigo-500 font-bold mt-0.5">{s.exchange}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-sm font-medium text-slate-900 dark:text-white">{s.broker || '-'}</div>
                                                     </td>
                                                     <td className="px-6 py-4 text-right font-mono text-slate-700 dark:text-slate-300">
                                                         {s.quantity.toLocaleString(undefined, { maximumFractionDigits: 4 })}
@@ -334,12 +437,16 @@ export default function StocksPage() {
                                                             {gl >= 0 ? '+' : ''}{glp.toFixed(2)}%
                                                         </div>
                                                     </td>
+                                                    <td className="px-6 py-4 text-right text-xs text-slate-500">
+                                                        {s.defaultBrokerageType === 'FLAT'
+                                                            ? `Flat: ${s.defaultBrokerageValue}`
+                                                            : `${s.defaultBrokerageValue}%`}
+                                                    </td>
                                                     <td className="px-6 py-4 text-right">
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 onClick={() => handleEdit(s)}
                                                                 className="p-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors"
-                                                                title="Edit Stock"
                                                             >
                                                                 ✏️
                                                             </button>
@@ -367,131 +474,248 @@ export default function StocksPage() {
                     )}
 
                     {activeTab === 'Add Asset' && (
-                        <div className="max-w-2xl mx-auto bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl animate-in zoom-in-95 duration-200">
-                            <h2 className="text-2xl font-bold mb-6 text-slate-900 dark:text-white">Add New Holding</h2>
-                            <form onSubmit={handleAddStock} className="space-y-6">
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="space-y-1">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Symbol</label>
-                                        <input
-                                            required
-                                            type="text"
-                                            value={formData.symbol}
-                                            onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all uppercase dark:text-white"
-                                            placeholder="e.g. AAPL"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Market</label>
-                                        <select
-                                            value={formData.exchange}
-                                            onChange={(e) => setFormData({ ...formData, exchange: e.target.value })}
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                        <div className="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+                            {/* Sub-Tabs for Single vs Bulk */}
+                            <div className="flex border-b border-slate-200 dark:border-slate-700">
+                                <button
+                                    onClick={() => setAddAssetTab('Single')}
+                                    className={`flex-1 py-4 text-center font-bold text-sm transition-colors ${addAssetTab === 'Single' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                                >
+                                    Single Asset
+                                </button>
+                                <button
+                                    onClick={() => setAddAssetTab('Bulk')}
+                                    className={`flex-1 py-4 text-center font-bold text-sm transition-colors ${addAssetTab === 'Bulk' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-b-2 border-blue-600' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                                >
+                                    Bulk Upload (CSV)
+                                </button>
+                            </div>
+
+                            <div className="p-8">
+                                {addAssetTab === 'Single' ? (
+                                    <form onSubmit={handleAddStock} className="space-y-6">
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="space-y-1">
+                                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Symbol</label>
+                                                <input
+                                                    required
+                                                    type="text"
+                                                    value={formData.symbol}
+                                                    onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all uppercase dark:text-white"
+                                                    placeholder="e.g. AAPL"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Market</label>
+                                                <select
+                                                    value={formData.exchange}
+                                                    onChange={(e) => setFormData({ ...formData, exchange: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                                >
+                                                    <option>NASDAQ</option>
+                                                    <option>NYSE</option>
+                                                    <option>LSE</option>
+                                                    <option>NSE</option>
+                                                    <option>DFM</option>
+                                                    <option>BSE</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="space-y-1">
+                                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Company Name</label>
+                                                <input
+                                                    required
+                                                    type="text"
+                                                    value={formData.name}
+                                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                                    placeholder="e.g. Apple Inc."
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Broker / Platform</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.broker}
+                                                    onChange={(e) => setFormData({ ...formData, broker: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                                    placeholder="e.g. Zerodha, ICICI"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-6">
+                                            <div className="space-y-1">
+                                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Quantity</label>
+                                                <input
+                                                    required
+                                                    type="number"
+                                                    step="0.0001"
+                                                    value={formData.quantity}
+                                                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Avg Buy Price</label>
+                                                <input
+                                                    required
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={formData.avgPrice}
+                                                    onChange={(e) => setFormData({ ...formData, avgPrice: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Currency</label>
+                                                <select
+                                                    value={formData.currency}
+                                                    onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                                >
+                                                    <option value="AED">AED</option>
+                                                    <option value="USD">USD</option>
+                                                    <option value="EUR">EUR</option>
+                                                    <option value="GBP">GBP</option>
+                                                    <option value="INR">INR</option>
+                                                    <option value="SAR">SAR</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Current Price</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={formData.currentPrice}
+                                                        onChange={(e) => setFormData({ ...formData, currentPrice: e.target.value })}
+                                                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                                        placeholder="Optional"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Brokerage Settings */}
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                            <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Brokerage Configuration</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-xs font-semibold text-slate-500">Type</label>
+                                                    <select
+                                                        value={formData.defaultBrokerageType}
+                                                        onChange={(e) => setFormData({ ...formData, defaultBrokerageType: e.target.value })}
+                                                        className="w-full mt-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm"
+                                                    >
+                                                        <option value="FLAT">Flat Fee</option>
+                                                        <option value="PERCENTAGE">Percentage (%)</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-semibold text-slate-500">Value</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={formData.defaultBrokerageValue}
+                                                        onChange={(e) => setFormData({ ...formData, defaultBrokerageValue: e.target.value })}
+                                                        className="w-full mt-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 mt-2">
+                                                This brokerage setting will be applied to all future transactions for this asset unless overridden.
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            disabled={isSubmitting}
+                                            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-600/20 active:scale-[0.98] disabled:opacity-50"
                                         >
-                                            <option>NASDAQ</option>
-                                            <option>NYSE</option>
-                                            <option>LSE</option>
-                                            <option>NSE</option>
-                                            <option>DFM</option>
-                                            <option>BSE</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Company Name</label>
-                                    <input
-                                        required
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
-                                        placeholder="e.g. Apple Inc."
-                                    />
-                                </div>
-                                <div className="grid grid-cols-4 gap-6">
-                                    <div className="space-y-1">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Quantity</label>
-                                        <input
-                                            required
-                                            type="number"
-                                            step="0.0001"
-                                            value={formData.quantity}
-                                            onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Avg Buy Price</label>
-                                        <input
-                                            required
-                                            type="number"
-                                            step="0.01"
-                                            value={formData.avgPrice}
-                                            onChange={(e) => setFormData({ ...formData, avgPrice: e.target.value })}
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Purchase Currency</label>
-                                        <select
-                                            value={formData.currency}
-                                            onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
-                                        >
-                                            <option value="AED">AED</option>
-                                            <option value="USD">USD</option>
-                                            <option value="EUR">EUR</option>
-                                            <option value="GBP">GBP</option>
-                                            <option value="INR">INR</option>
-                                            <option value="SAR">SAR</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Current Price</label>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={formData.currentPrice}
-                                                onChange={(e) => setFormData({ ...formData, currentPrice: e.target.value })}
-                                                className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
-                                                placeholder="Optional"
-                                            />
+                                            {isSubmitting ? 'Saving...' : (editingId ? 'Update Asset' : 'Add Stock Asset')}
+                                        </button>
+                                    </form>
+                                ) : (
+                                    /* Bulk Upload Tab */
+                                    <div className="space-y-6">
+                                        <div className="text-center">
+                                            <div className="text-4xl mb-4">📂</div>
+                                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Upload CSV File</h3>
+                                            <p className="text-slate-500 text-sm mt-1">Upload a CSV file with your stock holdings.</p>
                                             <button
-                                                type="button"
-                                                onClick={async () => {
-                                                    if (!formData.symbol) {
-                                                        alert('Please enter a stock symbol first');
-                                                        return;
-                                                    }
-                                                    try {
-                                                        const response = await financialDataApi.stockAssets.getQuote(formData.symbol.toUpperCase());
-                                                        const price = response.data.price;
-                                                        if (price) {
-                                                            setFormData({ ...formData, currentPrice: price.toString() });
-                                                            alert(`✅ Got latest price: $${price.toFixed(2)}`);
-                                                        }
-                                                    } catch (error: any) {
-                                                        alert('❌ Failed to fetch price: ' + (error.response?.data?.message || error.message));
-                                                    }
-                                                }}
-                                                className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors flex items-center gap-2 whitespace-nowrap"
+                                                onClick={handleDownloadTemplate}
+                                                className="text-blue-600 text-sm font-semibold hover:underline mt-2"
                                             >
-                                                🔄 Get Price
+                                                Download Template
                                             </button>
                                         </div>
-                                        <p className="text-xs text-slate-500">Leave empty to use purchase price</p>
+
+                                        <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-8 text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                            <input
+                                                type="file"
+                                                accept=".csv"
+                                                onChange={handleFileChange}
+                                                className="hidden"
+                                                id="csvUpload"
+                                            />
+                                            <label htmlFor="csvUpload" className="cursor-pointer">
+                                                <div className="text-slate-600 dark:text-slate-400 font-medium">
+                                                    {bulkFile ? bulkFile.name : 'Click to select file'}
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        {bulkErrors.length > 0 && (
+                                            <div className="bg-rose-50 dark:bg-rose-900/20 text-rose-600 p-4 rounded-xl text-sm">
+                                                <div className="font-bold mb-1">Validation Errors:</div>
+                                                <ul className="list-disc pl-4 space-y-1">
+                                                    {bulkErrors.slice(0, 5).map((e, i) => <li key={i}>{e}</li>)}
+                                                    {bulkErrors.length > 5 && <li>...and {bulkErrors.length - 5} more</li>}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {bulkPreview.length > 0 && bulkErrors.length === 0 && (
+                                            <div className="space-y-4">
+                                                <h4 className="font-bold text-slate-900 dark:text-white">Preview ({bulkPreview.length} items)</h4>
+                                                <div className="max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+                                                    <table className="w-full text-xs text-left">
+                                                        <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0">
+                                                            <tr>
+                                                                <th className="p-2">Symbol</th>
+                                                                <th className="p-2">Platform</th>
+                                                                <th className="p-2">Qty</th>
+                                                                <th className="p-2">Price</th>
+                                                                <th className="p-2">Fees</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                            {bulkPreview.map((row, i) => (
+                                                                <tr key={i}>
+                                                                    <td className="p-2 font-bold">{row.symbol}</td>
+                                                                    <td className="p-2">{row.broker || '-'}</td>
+                                                                    <td className="p-2">{row.quantity}</td>
+                                                                    <td className="p-2">{row.currency} {row.avgPrice}</td>
+                                                                    <td className="p-2">{row.defaultBrokerageType === 'FLAT' ? '$' : '%'}{row.defaultBrokerageValue}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <button
+                                                    onClick={handleBulkSubmit}
+                                                    disabled={isBulkProcessing}
+                                                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                                                >
+                                                    {isBulkProcessing ? 'Processing...' : 'Confirm & Import All'}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                                <button
-                                    type="submit"
-                                    disabled={isSubmitting}
-                                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-600/20 active:scale-[0.98] disabled:opacity-50"
-                                >
-                                    {isSubmitting ? 'Saving...' : 'Add Stock Asset'}
-                                </button>
-                            </form>
+                                )}
+                            </div>
                         </div>
                     )}
 

@@ -32,15 +32,20 @@ export class StockAssetsController {
   }
 
   @Post()
-  create(@Request() req: any, @Body() dto: CreateStockAssetDto) {
+  create(@Request() req: any, @Body() dto: CreateStockAssetDto & { defaultBrokerageType?: string; defaultBrokerageValue?: number }) {
     return this.stockAssetsService.create(req.user.id, dto);
+  }
+
+  @Post('bulk')
+  createBulk(@Request() req: any, @Body() assets: any[]) {
+    return this.stockAssetsService.bulkCreate(req.user.id, assets);
   }
 
   @Put(':id')
   update(
     @Param('id') id: string,
     @Request() req: any,
-    @Body() dto: UpdateStockAssetDto,
+    @Body() dto: UpdateStockAssetDto & { defaultBrokerageType?: string; defaultBrokerageValue?: number },
   ) {
     return this.stockAssetsService.update(id, req.user.id, dto);
   }

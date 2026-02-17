@@ -25,6 +25,7 @@ export const stockAssetsApi = {
     getQuote: (symbol: string) => apiClient.get(`/stock-assets/quote/${symbol}`),
     refreshPrice: (id: string) => apiClient.post(`/stock-assets/${id}/refresh-price`),
     refreshAllPrices: () => apiClient.post('/stock-assets/refresh-all-prices'),
+    bulkCreate: (data: any[]) => apiClient.post('/stock-assets/bulk', data),
 };
 
 // Properties API

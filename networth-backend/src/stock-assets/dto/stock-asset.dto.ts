@@ -28,7 +28,20 @@ export class CreateStockAssetDto {
 
   @IsString()
   @IsOptional()
+  @IsString()
+  @IsOptional()
+  currentPriceCurrency?: string;
+
+  @IsString()
+  @IsOptional()
   broker?: string;
+
+  @IsString()
+  @IsOptional()
+  defaultBrokerageType?: string; // FLAT, PERCENTAGE
+
+  @IsOptional()
+  defaultBrokerageValue?: number;
 
   @IsString()
   @IsOptional()
@@ -63,7 +76,18 @@ export class UpdateStockAssetDto {
 
   @IsString()
   @IsOptional()
+  currentPriceCurrency?: string;
+
+  @IsString()
+  @IsOptional()
   broker?: string;
+
+  @IsString()
+  @IsOptional()
+  defaultBrokerageType?: string;
+
+  @IsOptional()
+  defaultBrokerageValue?: number;
 
   @IsString()
   @IsOptional()

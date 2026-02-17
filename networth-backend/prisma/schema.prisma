@@ -221,6 +221,8 @@ model StockAsset {
   currentPriceCurrency  String?  @default("USD") // Currency of currentPrice (USD, INR, etc.)
   lastPriceUpdate       DateTime? // When price was last refreshed
   broker                String?
+  defaultBrokerageType  String?  @default("FLAT") // FLAT, PERCENTAGE
+  defaultBrokerageValue Decimal? @db.Decimal(15, 2) @default(0)
   notes                 String?  @db.Text
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -238,6 +240,7 @@ model StockTransaction {
   type          String   // BUY, SELL
   quantity      Decimal  @db.Decimal(15, 4)
   price         Decimal  @db.Decimal(15, 2)
+  brokerageFee  Decimal? @db.Decimal(15, 2) @default(0)
   date          DateTime @default(now())
   notes         String?  @db.Text
   createdAt     DateTime @default(now())
