@@ -88,13 +88,24 @@ export class StockAssetsService {
       throw new NotFoundException('Stock asset not found');
     }
 
+    // Explicitly pick only defined fields to avoid passing undefined/prototype artifacts
+    const data: any = {};
+    if (dto.symbol !== undefined) data.symbol = dto.symbol;
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.exchange !== undefined) data.exchange = dto.exchange;
+    if (dto.quantity !== undefined) data.quantity = dto.quantity;
+    if (dto.avgPrice !== undefined) data.avgPrice = dto.avgPrice;
+    if (dto.currentPrice !== undefined) data.currentPrice = dto.currentPrice;
+    if (dto.currency !== undefined) data.currency = dto.currency;
+    if (dto.currentPriceCurrency !== undefined) data.currentPriceCurrency = dto.currentPriceCurrency;
+    if (dto.broker !== undefined) data.broker = dto.broker;
+    if (dto.defaultBrokerageType !== undefined) data.defaultBrokerageType = dto.defaultBrokerageType;
+    if (dto.defaultBrokerageValue !== undefined) data.defaultBrokerageValue = dto.defaultBrokerageValue;
+    if (dto.notes !== undefined) data.notes = dto.notes;
+
     const updated = await this.prisma.stockAsset.update({
       where: { id },
-      data: {
-        ...dto,
-        defaultBrokerageType: dto.defaultBrokerageType,
-        defaultBrokerageValue: dto.defaultBrokerageValue,
-      },
+      data,
     });
 
     return updated;

@@ -43,6 +43,7 @@ export default function StocksPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [refreshingPrices, setRefreshingPrices] = useState(false);
+    const [showCustomBroker, setShowCustomBroker] = useState(false);
     const [lastPriceUpdate, setLastPriceUpdate] = useState<Date | null>(null);
 
     const [addAssetTab, setAddAssetTab] = useState<'Single' | 'Bulk'>('Single');
@@ -102,8 +103,18 @@ export default function StocksPage() {
         }
     }, [stocks.length, user?.email]);
 
+    const platformOptions = [
+        'Zerodha', 'Groww', 'Angel One', 'Upstox',
+        'ICICI Direct', 'HDFC Securities', 'Kotak Securities',
+        'Sharekhan', 'Motilal Oswal', '5Paisa',
+        'Interactive Brokers', 'TD Ameritrade', 'Charles Schwab',
+        'Fidelity', 'Robinhood', 'eToro', 'E*TRADE', 'WeBull'
+    ];
+
     const handleEdit = (stock: Stock & { defaultBrokerageType?: string; defaultBrokerageValue?: number }) => {
         setEditingId(stock.id);
+        const brokerVal = stock.broker || '';
+        setShowCustomBroker(brokerVal !== '' && !platformOptions.includes(brokerVal));
         setFormData({
             symbol: stock.symbol,
             name: stock.name,
@@ -112,7 +123,7 @@ export default function StocksPage() {
             avgPrice: stock.avgPrice.toString(),
             currentPrice: stock.currentPrice.toString(),
             currency: stock.currency || 'AED',
-            broker: stock.broker || '',
+            broker: brokerVal,
             defaultBrokerageType: stock.defaultBrokerageType || 'FLAT',
             defaultBrokerageValue: (stock.defaultBrokerageValue || 0).toString()
         });
@@ -143,6 +154,7 @@ export default function StocksPage() {
             }
             await refreshNetWorth();
             setEditingId(null);
+            setShowCustomBroker(false);
             setFormData({
                 symbol: '',
                 name: '',
@@ -535,14 +547,35 @@ export default function StocksPage() {
                                                 />
                                             </div>
                                             <div className="space-y-1">
-                                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Broker / Platform</label>
-                                                <input
-                                                    type="text"
-                                                    value={formData.broker}
-                                                    onChange={(e) => setFormData({ ...formData, broker: e.target.value })}
+                                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Platform</label>
+                                                <select
+                                                    value={showCustomBroker ? '__other__' : (platformOptions.includes(formData.broker) ? formData.broker : (formData.broker ? '__other__' : ''))}
+                                                    onChange={(e) => {
+                                                        if (e.target.value === '__other__') {
+                                                            setShowCustomBroker(true);
+                                                            setFormData({ ...formData, broker: '' });
+                                                        } else {
+                                                            setShowCustomBroker(false);
+                                                            setFormData({ ...formData, broker: e.target.value });
+                                                        }
+                                                    }}
                                                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
-                                                    placeholder="e.g. Zerodha, ICICI"
-                                                />
+                                                >
+                                                    <option value="">Select Platform</option>
+                                                    {platformOptions.map(p => (
+                                                        <option key={p} value={p}>{p}</option>
+                                                    ))}
+                                                    <option value="__other__">Other</option>
+                                                </select>
+                                                {showCustomBroker && (
+                                                    <input
+                                                        type="text"
+                                                        value={formData.broker}
+                                                        onChange={(e) => setFormData({ ...formData, broker: e.target.value })}
+                                                        className="w-full mt-2 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                                                        placeholder="Enter platform name"
+                                                    />
+                                                )}
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-4 gap-6">

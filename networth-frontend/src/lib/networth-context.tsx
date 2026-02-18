@@ -150,6 +150,9 @@ export function NetWorthProvider({ children }: { children: ReactNode }) {
             unitPrice: parseFloat(item.avgPrice),
             totalValue: parseFloat(item.quantity) * parseFloat(item.currentPrice),
             transactions: item.transactions || [],
+            broker: item.broker,
+            defaultBrokerageType: item.defaultBrokerageType,
+            defaultBrokerageValue: item.defaultBrokerageValue,
             purchaseDate: item.createdAt
         }));
         const total = items.reduce((sum, item) => {
