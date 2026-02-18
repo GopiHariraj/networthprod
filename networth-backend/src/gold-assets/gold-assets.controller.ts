@@ -16,7 +16,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 @Controller('gold-assets')
 @UseGuards(JwtAuthGuard)
 export class GoldAssetsController {
-  constructor(private goldAssetsService: GoldAssetsService) {}
+  constructor(private goldAssetsService: GoldAssetsService) { }
 
   @Get()
   findAll(@Request() req: any) {
@@ -31,6 +31,11 @@ export class GoldAssetsController {
   @Post()
   create(@Request() req: any, @Body() dto: CreateGoldAssetDto) {
     return this.goldAssetsService.create(req.user.id, dto);
+  }
+
+  @Post('refresh-prices')
+  refreshPrices(@Request() req: any) {
+    return this.goldAssetsService.refreshPrices(req.user.id);
   }
 
   @Put(':id')

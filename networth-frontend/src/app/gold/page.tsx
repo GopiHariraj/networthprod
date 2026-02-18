@@ -11,8 +11,11 @@ interface GoldOrnament {
     id: string;
     ornamentName: string;
     grams: number;
-    pricePerGram: number;
-    totalValue: number;
+    pricePerGram: number; // This is actually Purchase Price Per Gram based on form logic? No, form has `pricePerGram`.
+    // Let's clarify: existing `totalValue` seems to be static. 
+    // We need `purchasePrice` (total), `currentValue` (total).
+    purchasePrice: number;
+    currentValue: number;
     purchaseDate: string;
     purity: string;
     imageUrl?: string;
@@ -52,8 +55,11 @@ export default function GoldPage() {
                 id: item.id,
                 ornamentName: item.ornamentName,
                 grams: item.grams,
-                pricePerGram: item.pricePerGram,
-                totalValue: item.totalValue,
+                // Backend fields might need mapping. 
+                // Using `purchasePrice` from backend if available, else fallback.
+                pricePerGram: item.pricePerGram || 0, // Keep for reference if needed
+                purchasePrice: item.purchasePrice || item.totalValue, // Fallback for old items
+                currentValue: item.currentValue || item.totalValue,
                 purchaseDate: item.purchaseDate,
                 purity: item.purity,
                 imageUrl: item.imageUrl
@@ -88,6 +94,20 @@ export default function GoldPage() {
         } catch (error: any) {
             alert(error.message || 'Failed to process image. Please try a smaller image.');
             console.error('Image upload error:', error);
+        }
+    };
+
+    const handleRefreshRates = async () => {
+        try {
+            setIsSubmitting(true);
+            const result = await financialDataApi.goldAssets.refreshPrices();
+            alert(`Rates refreshed! Current 24K Rate: ${currency.symbol} ${result.data.currentRate24k}`);
+            await refreshNetWorth();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to refresh rates');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -183,12 +203,14 @@ export default function GoldPage() {
     };
 
     const getTotalGrams = () => ornaments.reduce((sum, ornament) => sum + ornament.grams, 0);
-    const getTotalValueList = () => ornaments.reduce((sum, ornament) => sum + ornament.totalValue, 0);
+    const getTotalCurrentValue = () => ornaments.reduce((sum, ornament) => sum + ornament.currentValue, 0);
+    const getTotalPurchaseValue = () => ornaments.reduce((sum, ornament) => sum + ornament.purchasePrice, 0);
+    const getTotalGainLoss = () => getTotalCurrentValue() - getTotalPurchaseValue();
 
     // Chart Data
     const purityDistribution = React.useMemo(() => ornaments.reduce((acc: any, ornament) => {
         const existing = acc.find((item: any) => item.name === ornament.purity);
-        const convertedValue = convert(ornament.totalValue, 'AED');
+        const convertedValue = convert(ornament.currentValue, 'AED');
         if (existing) {
             existing.value += convertedValue;
         } else {
@@ -198,11 +220,11 @@ export default function GoldPage() {
     }, []), [ornaments, convert]);
 
     const topOrnaments = React.useMemo(() => [...ornaments]
-        .sort((a, b) => b.totalValue - a.totalValue)
+        .sort((a, b) => b.currentValue - a.currentValue)
         .slice(0, 5)
         .map(o => ({
             name: o.ornamentName?.length > 15 ? o.ornamentName.substring(0, 15) + '...' : (o.ornamentName || 'Unnamed Ornament'),
-            value: convert(o.totalValue, 'AED')
+            value: convert(o.currentValue, 'AED')
         })), [ornaments, convert]);
 
     const renderInsights = () => (
@@ -273,13 +295,13 @@ export default function GoldPage() {
                     <div className="space-y-2">
                         <div className="text-sm text-slate-500 dark:text-slate-400 font-medium">Average Price per Gram</div>
                         <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                            {currency.symbol} {convert((ornaments.length > 0 ? getTotalValueList() / getTotalGrams() : 0), 'AED').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {currency.symbol} {convert((ornaments.length > 0 ? getTotalCurrentValue() / getTotalGrams() : 0), 'AED').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                     </div>
                     <div className="space-y-2">
                         <div className="text-sm text-slate-500 dark:text-slate-400 font-medium">Largest Asset</div>
                         <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                            {ornaments.length > 0 ? ornaments.sort((a, b) => b.totalValue - a.totalValue)[0].ornamentName : 'N/A'}
+                            {ornaments.length > 0 ? ornaments.sort((a, b) => b.currentValue - a.currentValue)[0].ornamentName : 'N/A'}
                         </div>
                     </div>
                 </div>
@@ -296,18 +318,27 @@ export default function GoldPage() {
                         <p className="text-slate-500 mt-2 text-lg">Manage and track your precious metal assets</p>
                     </div>
 
-                    <div className="flex bg-white dark:bg-slate-800 p-1.5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                        {(['Inventory', 'Add Item', 'Insights'] as const).map((tab) => (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${activeTab === tab
-                                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
-                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
-                            >
-                                {tab === 'Add Item' ? (editingId ? '✏️ Edit Item' : '➕ Add Item') : tab === 'Inventory' ? '📋 Inventory' : '📊 Insights'}
-                            </button>
-                        ))}
+                    <div className="flex gap-3">
+                        <button
+                            onClick={handleRefreshRates}
+                            disabled={isSubmitting}
+                            className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-2.5 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {isSubmitting ? '🔄 Updating...' : '🔄 Refresh Rates'}
+                        </button>
+                        <div className="flex bg-white dark:bg-slate-800 p-1.5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+                            {(['Inventory', 'Add Item', 'Insights'] as const).map((tab) => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${activeTab === tab
+                                        ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
+                                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50'}`}
+                                >
+                                    {tab === 'Add Item' ? (editingId ? '✏️ Edit Item' : '➕ Add Item') : tab === 'Inventory' ? '📋 Inventory' : '📊 Insights'}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </header>
 
@@ -318,7 +349,10 @@ export default function GoldPage() {
                     </div>
                     <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-7 text-white shadow-xl shadow-slate-900/20">
                         <div className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">Portfolio Value</div>
-                        <div className="text-4xl font-black">{currency.symbol} {convert(getTotalValueList(), 'AED').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        <div className="text-4xl font-black">{currency.symbol} {convert(getTotalCurrentValue(), 'AED').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        <div className={`text-sm font-bold mt-2 ${getTotalGainLoss() >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {getTotalGainLoss() >= 0 ? '▲' : '▼'} {currency.symbol} {convert(Math.abs(getTotalGainLoss()), 'AED').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({((getTotalGainLoss() / getTotalPurchaseValue()) * 100).toFixed(2)}%)
+                        </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 rounded-3xl p-7 shadow-sm border border-slate-200 dark:border-slate-700">
                         <div className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">Total Items</div>
@@ -348,7 +382,9 @@ export default function GoldPage() {
                                                     <th className="px-8 py-5 text-left text-xs font-bold text-slate-500 uppercase tracking-widest">Item</th>
                                                     <th className="px-8 py-5 text-center text-xs font-bold text-slate-500 uppercase tracking-widest">Purity</th>
                                                     <th className="px-8 py-5 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">Weight</th>
-                                                    <th className="px-8 py-5 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">Total Value</th>
+                                                    <th className="px-8 py-5 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">Purchase</th>
+                                                    <th className="px-8 py-5 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">Current</th>
+                                                    <th className="px-8 py-5 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">Gain/Loss</th>
                                                     <th className="px-8 py-5 text-center text-xs font-bold text-slate-500 uppercase tracking-widest">Actions</th>
                                                 </tr>
                                             </thead>
@@ -384,10 +420,17 @@ export default function GoldPage() {
                                                         </td>
                                                         <td className="px-8 py-5 text-right">
                                                             <div className="font-bold text-slate-900 dark:text-white">{ornaments.length > 0 ? ornament.grams : 0} <span className="text-xs text-slate-400 font-medium">g</span></div>
-                                                            <div className="text-[10px] text-slate-400">{currency.symbol} {convert(ornament.pricePerGram, 'AED').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/g</div>
                                                         </td>
                                                         <td className="px-8 py-5 text-right">
-                                                            <div className="text-lg font-black text-amber-600 dark:text-amber-500">{currency.symbol} {convert(ornament.totalValue, 'AED').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                                            <div className="text-sm font-bold text-slate-500 dark:text-slate-400">{currency.symbol} {convert(ornament.purchasePrice, 'AED').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-right">
+                                                            <div className="text-lg font-black text-amber-600 dark:text-amber-500">{currency.symbol} {convert(ornament.currentValue, 'AED').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-right">
+                                                            <div className={`text-sm font-bold ${(ornament.currentValue - ornament.purchasePrice) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                                {currency.symbol} {convert(ornament.currentValue - ornament.purchasePrice, 'AED').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </div>
                                                         </td>
                                                         <td className="px-8 py-5 text-center">
                                                             <div className="flex gap-2 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -512,6 +555,6 @@ export default function GoldPage() {
                 </div>
             </div>
             <ImageLightbox images={lightboxImages} currentIndex={0} isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} onDownload={handleImageDownload} />
-        </div>
+        </div >
     );
 }

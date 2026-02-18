@@ -171,4 +171,31 @@ export class StockPriceService {
         }
         return null;
     }
+    async fetchGoldPrice(currency: string = 'AED'): Promise<number | null> {
+        if (!this.openai) {
+            console.error('[StockPriceService] OpenAI not initialized');
+            return null;
+        }
+
+        const prompt = `What is the current live market rate for 24K Gold per Gram in ${currency}?
+        Return ONLY the numeric value. Do not include currency symbols.`;
+
+        try {
+            const completion = await this.openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: prompt }]
+            });
+
+            const text = completion.choices[0]?.message?.content?.trim();
+            const price = parseFloat(text?.replace(/[^0-9.]/g, '') || '0');
+
+            if (price > 0) {
+                console.log(`[StockPriceService] Gold price fetched: ${price} ${currency}`);
+                return price;
+            }
+        } catch (error) {
+            console.error('[StockPriceService] Failed to fetch gold price:', error);
+        }
+        return null;
+    }
 }

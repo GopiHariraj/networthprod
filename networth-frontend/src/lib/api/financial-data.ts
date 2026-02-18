@@ -14,6 +14,7 @@ export const goldAssetsApi = {
     create: (data: any) => apiClient.post('/gold-assets', data),
     update: (id: string, data: any) => apiClient.put(`/gold-assets/${id}`, data),
     delete: (id: string) => apiClient.delete(`/gold-assets/${id}`),
+    refreshPrices: () => apiClient.post('/gold-assets/refresh-prices'),
 };
 
 // Stock Assets API
