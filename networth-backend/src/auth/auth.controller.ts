@@ -13,7 +13,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { ChangePasswordDto, MagicLoginDto } from './dto/password-reset.dto';
+import { ChangePasswordDto, MagicLoginDto, ForgotPasswordDto, ResetPasswordDto } from './dto/password-reset.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
@@ -63,5 +63,17 @@ export class AuthController {
   @Post('change-password')
   changePassword(@Request() req: any, @Body() dto: ChangePasswordDto) {
     return this.authService.updatePassword(req.user.id, dto.currentPassword, dto.newPassword);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 }

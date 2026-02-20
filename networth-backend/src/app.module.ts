@@ -24,6 +24,7 @@ import { InsuranceModule } from './insurance/insurance.module';
 import { DepreciatingAssetsModule } from './depreciating-assets/depreciating-assets.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TodoModule } from './todo/todo.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { TodoModule } from './todo/todo.module';
     InsuranceModule,
     DepreciatingAssetsModule,
     TodoModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

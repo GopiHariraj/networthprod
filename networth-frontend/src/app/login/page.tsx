@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { authApi, API_URL } from '../../lib/api/client';
 
 export default function LoginPage() {
@@ -15,6 +16,7 @@ export default function LoginPage() {
     const [lastName, setLastName] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [failedAttempts, setFailedAttempts] = useState(0);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -33,8 +35,14 @@ export default function LoginPage() {
             }
         } catch (err: any) {
             const message = err.response?.data?.message || err.message || 'Authentication failed';
-            if (message.includes('Account disabled')) {
-                setError('5 Failed Attempts: Account disabled. Contact admin support to activate and reset password.');
+
+            if (!isSignup) {
+                setFailedAttempts(prev => prev + 1);
+            }
+
+            if (message.includes('Account disabled') || message.includes('too many failed attempts')) {
+                setFailedAttempts(5); // Ensure it's marked as disabled
+                setError('Account disabled due to too many failed attempts. Please reset your password.');
             } else {
                 setError(message);
             }
@@ -125,7 +133,14 @@ export default function LoginPage() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-blue-100 mb-1">Password</label>
+                            <div className="flex justify-between mb-1 items-center">
+                                <label className="block text-sm font-medium text-blue-100">Password</label>
+                                {!isSignup && failedAttempts >= 5 && (
+                                    <Link href={`/auth/forgot-password?email=${encodeURIComponent(email)}`} className="text-xs text-emerald-400 font-semibold hover:text-emerald-300 transition-colors bg-emerald-900/30 px-2 py-1 rounded">
+                                        Forgot password?
+                                    </Link>
+                                )}
+                            </div>
                             <input
                                 type="password"
                                 value={password}

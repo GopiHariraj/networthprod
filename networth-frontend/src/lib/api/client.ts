@@ -141,8 +141,13 @@ apiClient.interceptors.response.use(
             localStorage.removeItem('refreshToken');
             document.cookie = 'token=; path=/; max-age=0';
 
-            if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-                window.location.href = '/login';
+            if (typeof window !== 'undefined') {
+                const publicPaths = ['/login', '/register', '/reset-password', '/auth/reset-password', '/auth/forgot-password', '/auth/magic-login', '/auth/reset', '/auth/google/callback'];
+                const isPublicPath = publicPaths.some(p => window.location.pathname.startsWith(p));
+
+                if (!isPublicPath) {
+                    window.location.href = '/login';
+                }
             }
         }
         return Promise.reject(error);
@@ -152,6 +157,8 @@ apiClient.interceptors.response.use(
 export const authApi = {
     login: (credentials: any) => apiClient.post('/auth/login', credentials),
     signup: (data: any) => apiClient.post('/auth/signup', data),
+    forgotPassword: (data: { email: string }) => apiClient.post('/auth/forgot-password', data),
+    resetPassword: (data: { token: string; newPassword: string }) => apiClient.post('/auth/reset-password', data),
 };
 
 export const usersApi = {

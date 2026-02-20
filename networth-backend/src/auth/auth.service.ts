@@ -4,6 +4,8 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import * as argon2 from 'argon2';
 import { LoginDto } from './dto/login.dto';
 import { UsersService } from '../users/users.service';
+import { MailService } from '../mail/mail.service';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -11,9 +13,72 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private usersService: UsersService,
+    private mailService: MailService,
   ) { }
 
   // generateResetLink moved to UsersService
+
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      // Return a generic success message to prevent email enumeration
+      return { message: 'If an account with that email exists, a password reset link has been sent.' };
+    }
+
+    // Generate secure reset token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiry = new Date();
+    expiry.setMinutes(expiry.getMinutes() + 15); // 15-minute expiry
+
+    // Save token to DB
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetToken: token,
+        resetTokenExpiry: expiry,
+      },
+    });
+
+    // Send email using Mailjet integration
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetLink = `${frontendUrl}/auth/reset-password?token=${token}`;
+
+    await this.mailService.sendPasswordResetEmail(user.email, resetLink);
+
+    return { message: 'If an account with that email exists, a password reset link has been sent.' };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    // Hash the new password
+    const hash = await argon2.hash(newPassword);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: hash,
+        password: null,
+        resetToken: null,
+        resetTokenExpiry: null,
+        forceChangePassword: false,
+        failedLoginAttempts: 0,
+        isDisabled: false,
+      },
+    });
+
+    return { message: 'Password has been successfully reset' };
+  }
 
   async loginWithMagicLink(token: string) {
     const user = await this.prisma.user.findFirst({

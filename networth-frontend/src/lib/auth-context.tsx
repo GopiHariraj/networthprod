@@ -146,7 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         } else {
             // Redirect to login if not authenticated and not on public page
-            const publicPaths = ['/login', '/register', '/reset-password', '/auth/reset-password', '/auth/magic-login', '/auth/reset', '/auth/google/callback'];
+            const publicPaths = ['/login', '/register', '/reset-password', '/auth/reset-password', '/auth/forgot-password', '/auth/magic-login', '/auth/reset', '/auth/google/callback'];
 
             setIsLoading(false);
             if (!publicPaths.some(path => pathname.startsWith(path))) {

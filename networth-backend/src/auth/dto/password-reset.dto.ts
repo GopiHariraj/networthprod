@@ -16,3 +16,20 @@ export class MagicLoginDto {
   @IsNotEmpty()
   token: string;
 }
+
+export class ForgotPasswordDto {
+  @IsString()
+  @IsNotEmpty()
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(6)
+  newPassword: string;
+}
