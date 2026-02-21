@@ -140,30 +140,21 @@ export class AdminService {
           userIdMap.set(user.id, currentId!);
           console.log(`[Import] Mapping existing user ${user.email} from ${user.id} -> ${currentId}`);
         } else {
-          // User does not exist, create them
-          // We try to keep the old ID if possible, but if there's a collision (unlikely with UUIDs), Prisma might throw.
-          // Safer to let Prisma/DB generate ID if we wanted, but let's try to use the backup ID first.
-          // Actually, if we create, we should store the mapping just in case constraints etc.
           try {
-            const createdUser = await this.prisma.user.create({ data: user });
-            userIdMap.set(user.id, createdUser.id);
-            existingUserMap.set(user.email.toLowerCase(), createdUser.id);
+            // Determine the final ID to use (backup ID unless it conflicts or is missing)
+            const { id, ...userData } = user;
+
+            const upsertedUser = await this.prisma.user.upsert({
+              where: { email: user.email },
+              update: userData, // Keep existing ID if they actually exist unseen
+              create: user, // Try to recreate exactly as backup (including ID)
+            });
+
+            userIdMap.set(user.id, upsertedUser.id);
+            existingUserMap.set(user.email.toLowerCase(), upsertedUser.id);
           } catch (e: any) {
-            if (e.code === 'P2002') {
-              console.log(`[Import] Skipping user creation due to duplicate constraint: ${user.email}`);
-              // If they already exist but we didn't map them upfront, try to find them
-              const existing = await this.prisma.user.findFirst({ where: { email: user.email } });
-              if (existing) {
-                userIdMap.set(user.id, existing.id);
-                existingUserMap.set(user.email.toLowerCase(), existing.id);
-              }
-            } else {
-              // Fallback: if creation failed (e.g., ID conflict), try creating without ID
-              const { id, ...userData } = user;
-              const createdUser = await this.prisma.user.create({ data: userData });
-              userIdMap.set(user.id, createdUser.id);
-              existingUserMap.set(user.email.toLowerCase(), createdUser.id);
-            }
+            console.error(`[Import] CRITICAL: Failed to upsert user ${user.email} - skipping. Error:`, e.message || e);
+            // Skip this user but log the error visibly so it doesn't crash the loop
           }
         }
       }
