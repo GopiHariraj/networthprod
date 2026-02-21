@@ -146,11 +146,23 @@ export class AdminService {
         try {
           const createdUser = await this.prisma.user.create({ data: user });
           userIdMap.set(user.id, createdUser.id);
-        } catch (e) {
-          // Fallback: if creation failed (maybe ID conflict?), try creating without ID
-          const { id, ...userData } = user;
-          const createdUser = await this.prisma.user.create({ data: userData });
-          userIdMap.set(user.id, createdUser.id);
+          existingUserMap.set(user.email.toLowerCase(), createdUser.id);
+        } catch (e: any) {
+          if (e.code === 'P2002') {
+            console.log(`[Import] Skipping user creation due to duplicate constraint: ${user.email}`);
+            // If they already exist but we didn't map them upfront, try to find them
+            const existing = await this.prisma.user.findFirst({ where: { email: user.email } });
+            if (existing) {
+              userIdMap.set(user.id, existing.id);
+              existingUserMap.set(user.email.toLowerCase(), existing.id);
+            }
+          } else {
+            // Fallback: if creation failed (e.g., ID conflict), try creating without ID
+            const { id, ...userData } = user;
+            const createdUser = await this.prisma.user.create({ data: userData });
+            userIdMap.set(user.id, createdUser.id);
+            existingUserMap.set(user.email.toLowerCase(), createdUser.id);
+          }
         }
       }
     }
