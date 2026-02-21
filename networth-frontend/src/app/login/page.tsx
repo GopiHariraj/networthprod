@@ -135,7 +135,7 @@ export default function LoginPage() {
                         <div>
                             <div className="flex justify-between mb-1 items-center">
                                 <label className="block text-sm font-medium text-blue-100">Password</label>
-                                {!isSignup && failedAttempts >= 5 && (
+                                {!isSignup && (
                                     <Link href={`/auth/forgot-password?email=${encodeURIComponent(email)}`} className="text-xs text-emerald-400 font-semibold hover:text-emerald-300 transition-colors bg-emerald-900/30 px-2 py-1 rounded">
                                         Forgot password?
                                     </Link>
