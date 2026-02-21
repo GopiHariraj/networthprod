@@ -125,7 +125,7 @@ export class AdminService {
     const existingUsers = await this.prisma.user.findMany();
     // Create a map of Email -> ID for existing users
     const existingUserMap = new Map<string, string>();
-    existingUsers.forEach(u => existingUserMap.set(u.email, u.id));
+    existingUsers.forEach(u => existingUserMap.set(u.email.toLowerCase(), u.id));
 
     // Map to track OldID -> NewID
     const userIdMap = new Map<string, string>();
@@ -133,9 +133,9 @@ export class AdminService {
     const usersToImport = data.users || [];
 
     for (const user of usersToImport) {
-      if (existingUserMap.has(user.email)) {
+      if (existingUserMap.has(user.email.toLowerCase())) {
         // User exists (e.g. Admin), map Old Backup ID -> Current DB ID
-        const currentId = existingUserMap.get(user.email);
+        const currentId = existingUserMap.get(user.email.toLowerCase());
         userIdMap.set(user.id, currentId!);
         console.log(`[Import] Mapping existing user ${user.email} from ${user.id} -> ${currentId}`);
       } else {
