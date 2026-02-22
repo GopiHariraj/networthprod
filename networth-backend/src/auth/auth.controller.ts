@@ -51,6 +51,7 @@ export class AuthController {
       email: user.email,
       sub: user.id,
       role: user.role,
+      planType: user.planType,
       name: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'User'
     };
     const token = this.authService['jwtService'].sign(payload); // Accessing private jwtService or expose it public/method
