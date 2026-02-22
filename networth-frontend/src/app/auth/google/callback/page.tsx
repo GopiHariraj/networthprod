@@ -24,6 +24,7 @@ function CallbackContent() {
                     email: decoded.email,
                     name: decoded.name || 'User',
                     role: decoded.role,
+                    planType: decoded.planType,
                 };
 
                 // SAFARI FIX: Pass token and user via URL parameters
