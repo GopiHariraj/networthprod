@@ -26,7 +26,7 @@ export class ExpensesService {
             : new Date(dto.date + 'T00:00:00.000Z');
 
         try {
-            return await this.prisma.$transaction(async (tx) => {
+            return await this.prisma.$transaction(async (tx: any) => {
                 // 1. Create the expense
                 const expense = await tx.expense.create({
                     data: {
@@ -100,7 +100,7 @@ export class ExpensesService {
             throw new NotFoundException('Expense not found');
         }
 
-        return this.prisma.$transaction(async (tx) => {
+        return this.prisma.$transaction(async (tx: any) => {
             // 1. Reverse old balance adjustments
             const oldAmount = Number(oldExpense.amount);
             if (oldExpense.paymentMethod === 'credit_card' && oldExpense.creditCardId) {
@@ -203,7 +203,7 @@ export class ExpensesService {
             throw new NotFoundException('Expense not found');
         }
 
-        return this.prisma.$transaction(async (tx) => {
+        return this.prisma.$transaction(async (tx: any) => {
             const amount = Number(expense.amount);
 
             // Reverse balance adjustments
@@ -248,17 +248,17 @@ export class ExpensesService {
 
     async getInsights(userId: string) {
         const expenses = await this.findAll(userId);
-        const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+        const total = expenses.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
 
         // Group by category
-        const constByCategory = expenses.reduce((acc: any, exp) => {
+        const constByCategory = expenses.reduce((acc: any, exp: any) => {
             if (!acc[exp.category]) acc[exp.category] = 0;
             acc[exp.category] += Number(exp.amount);
             return acc;
         }, {});
 
         // Group by payment method
-        const costByPaymentMethod = expenses.reduce((acc: any, exp) => {
+        const costByPaymentMethod = expenses.reduce((acc: any, exp: any) => {
             const method = exp.paymentMethod || 'cash';
             if (!acc[method]) acc[method] = 0;
             acc[method] += Number(exp.amount);
@@ -271,8 +271,8 @@ export class ExpensesService {
         sixMonthsAgo.setDate(1);
 
         const monthlyTrend = expenses
-            .filter(e => new Date(e.date) >= sixMonthsAgo)
-            .reduce((acc: any, exp) => {
+            .filter((e: any) => new Date(e.date) >= sixMonthsAgo)
+            .reduce((acc: any, exp: any) => {
                 const month = new Date(exp.date).toLocaleString('default', { month: 'short', year: '2-digit' });
                 if (!acc[month]) acc[month] = 0;
                 acc[month] += Number(exp.amount);
@@ -375,18 +375,18 @@ export class ExpensesService {
         });
 
         // Calculate aggregations
-        const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+        const total = expenses.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
         const count = expenses.length;
 
         // Group by category
-        const byCategory = expenses.reduce((acc: any, exp) => {
+        const byCategory = expenses.reduce((acc: any, exp: any) => {
             if (!acc[exp.category]) acc[exp.category] = 0;
             acc[exp.category] += Number(exp.amount);
             return acc;
         }, {});
 
         // Group by payment method
-        const byPaymentMethod = expenses.reduce((acc: any, exp) => {
+        const byPaymentMethod = expenses.reduce((acc: any, exp: any) => {
             const method = exp.paymentMethod || 'cash';
             if (!acc[method]) acc[method] = 0;
             acc[method] += Number(exp.amount);
@@ -394,7 +394,7 @@ export class ExpensesService {
         }, {});
 
         return {
-            expenses: expenses.map(e => ({
+            expenses: expenses.map((e: any) => ({
                 ...e,
                 amount: parseFloat(e.amount.toString()),
             })),

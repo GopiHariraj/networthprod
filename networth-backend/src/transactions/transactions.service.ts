@@ -17,7 +17,7 @@ export class TransactionsService {
   ) { }
 
   async create(userId: string, dto: CreateTransactionDto) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const transaction = await tx.transaction.create({
         data: {
           amount: dto.amount,
@@ -304,24 +304,24 @@ export class TransactionsService {
     ]);
 
     // Fetch category names for the breakdown
-    const categoryIds = categoryData.map(c => c.categoryId).filter(Boolean);
+    const categoryIds = categoryData.map((c: any) => c.categoryId).filter(Boolean);
     const categories = await this.prisma.category.findMany({
       where: { id: { in: categoryIds as string[] } },
       select: { id: true, name: true },
     });
 
-    const categoryMap = categories.reduce((acc: Record<string, string>, cat) => {
+    const categoryMap = categories.reduce((acc: Record<string, string>, cat: any) => {
       acc[cat.id] = cat.name;
       return acc;
     }, {});
 
     // Combine pie chart data from both transaction and expense tables
-    const transactionPieData = categoryData.map(c => ({
+    const transactionPieData = categoryData.map((c: any) => ({
       name: categoryMap[c.categoryId as string] || 'Uncategorized',
       value: Number(c._sum.amount),
     }));
 
-    const expensePieData = expenseCategoryData.map(e => ({
+    const expensePieData = expenseCategoryData.map((e: any) => ({
       name: e.category || 'Uncategorized',
       value: Number(e._sum.amount),
     }));
@@ -347,7 +347,7 @@ export class TransactionsService {
     // Combine and sort recent transactions from both sources
     const combinedRecentTransactions = [
       ...recentTransactions,
-      ...recentExpenses.map(e => ({
+      ...recentExpenses.map((e: any) => ({
         id: e.id,
         amount: e.amount,
         description: e.notes || e.merchant || 'Expense',
@@ -432,7 +432,7 @@ export class TransactionsService {
   }
 
   async update(userId: string, id: string, dto: any) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       // Get existing transaction
       const existing = await tx.transaction.findFirst({
         where: { id, userId },
@@ -519,7 +519,7 @@ export class TransactionsService {
   }
 
   async remove(userId: string, id: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       // Get transaction to reverse balance impact
       const transaction = await tx.transaction.findFirst({
         where: { id, userId },

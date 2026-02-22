@@ -5,7 +5,7 @@ import {
   IsOptional,
   IsBoolean,
 } from 'class-validator';
-import { Role } from '@prisma/client';
+import { Role, PlanType } from '@prisma/client';
 
 export class UpdateUserDto {
   @IsEmail()
@@ -45,4 +45,14 @@ export class UpdateUserDto {
 
   @IsOptional()
   moduleVisibility?: any;
+
+  @IsEnum(PlanType)
+  @IsOptional()
+  planType?: PlanType;
+
+  @IsOptional()
+  proStartDate?: Date | string | null;
+
+  @IsOptional()
+  proEndDate?: Date | string | null;
 }

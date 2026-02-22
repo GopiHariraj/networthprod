@@ -126,7 +126,7 @@ export class AdminService {
       const existingUsers = await this.prisma.user.findMany();
       // Create a map of Email -> ID for existing users
       const existingUserMap = new Map<string, string>();
-      existingUsers.forEach(u => existingUserMap.set(u.email.toLowerCase(), u.id));
+      existingUsers.forEach((u: any) => existingUserMap.set(u.email.toLowerCase(), u.id));
 
       // Map to track OldID -> NewID
       const userIdMap = new Map<string, string>();

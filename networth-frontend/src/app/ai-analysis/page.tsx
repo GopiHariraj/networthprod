@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useCurrency } from '../../lib/currency-context';
 import { useNetWorth } from '../../lib/networth-context';
+import { useAuth } from '../../lib/auth-context';
 import { aiApi, apiClient } from '../../lib/api/client';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -45,6 +46,7 @@ const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'
 export default function AIAnalyticsPage() {
     const { currency, convert } = useCurrency();
     const { data: networthData } = useNetWorth();
+    const { user } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputMessage, setInputMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -302,161 +304,198 @@ export default function AIAnalyticsPage() {
                     <p className="text-slate-500 mt-2">Chat with AI to analyze your finances and generate insights</p>
                 </header>
 
-                {/* AI Insights Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg">
-                        <div className="text-sm opacity-90">Net Worth Trend</div>
-                        <div className="text-3xl font-bold mt-2">{insights.netWorthTrend}</div>
-                        <div className="text-sm mt-1">Last 30 days</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
-                        <div className="text-sm opacity-90">Biggest Asset Change</div>
-                        <div className="text-2xl font-bold mt-2">{insights.biggestAssetChange}</div>
-                        <div className="text-sm mt-1">This month</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl p-6 text-white shadow-lg">
-                        <div className="text-sm opacity-90">Biggest Liability Change</div>
-                        <div className="text-2xl font-bold mt-2">{insights.biggestLiabilityChange}</div>
-                        <div className="text-sm mt-1">This month</div>
-                    </div>
-                </div>
+                {user?.planType !== 'PRO' && user?.planType !== 'ENTERPRISE' ? (
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-12 text-center shadow-xl border border-slate-200 dark:border-slate-700 max-w-2xl mx-auto my-16 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
+                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -ml-32 -mb-32"></div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Chat Area */}
-                    <div className="lg:col-span-2">
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">💬 Chat with AI</h2>
-                                <div className="flex gap-2">
-                                    <button onClick={handleExport} className="px-4 py-2 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium transition-colors">
-                                        📥 Export Report
-                                    </button>
-                                    <button onClick={handleClearChat} className="px-4 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-700 dark:text-red-400 rounded-lg text-sm font-medium transition-colors">
-                                        🗑️ Clear Chat
-                                    </button>
-                                </div>
+                        <div className="relative z-10">
+                            <div className="w-24 h-24 bg-gradient-to-br from-amber-400 to-orange-500 rounded-3xl flex items-center justify-center text-5xl mx-auto mb-8 shadow-2xl shadow-orange-500/30 transform -rotate-6">
+                                🤖
                             </div>
+                            <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-4">
+                                Unlock AI Analytics
+                            </h2>
+                            <p className="text-lg text-slate-500 dark:text-slate-400 mb-8 max-w-lg mx-auto leading-relaxed">
+                                Get instant answers to complex financial questions, uncover hidden spending patterns, and generate beautiful interactive charts with our Advanced AI.
+                            </p>
 
-                            {/* Messages */}
-                            <div className="p-6 space-y-4 h-96 overflow-y-auto">
-                                {messages.length === 0 ? (
-                                    <div className="text-center py-12">
-                                        <div className="text-6xl mb-4">🤖</div>
-                                        <div className="text-slate-500 dark:text-slate-400">Start a conversation or use preset questions below</div>
-                                    </div>
-                                ) : (
-                                    messages.map(message => (
-                                        <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                            <div className={`max-w-3xl ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'} rounded-2xl p-4`}>
-                                                <div className="text-sm font-semibold mb-1">{message.role === 'user' ? 'You' : '🤖 AI Assistant'}</div>
-                                                {message.role === 'assistant' ? (
-                                                    <div className="prose prose-sm max-w-none text-slate-900 dark:text-slate-100">
-                                                        <ReactMarkdown
-                                                            remarkPlugins={[remarkGfm]}
-                                                            components={{
-                                                                h1: ({ node, ...props }) => <h1 className="text-2xl font-bold mt-6 mb-3 pb-2 border-b-2 border-blue-500 text-slate-900 dark:text-white" {...props} />,
-                                                                h2: ({ node, ...props }) => <h2 className="text-xl font-bold mt-5 mb-2 text-blue-600 dark:text-blue-400" {...props} />,
-                                                                h3: ({ node, ...props }) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-800 dark:text-slate-200" {...props} />,
-                                                                p: ({ node, ...props }) => <p className="mb-3 leading-relaxed text-slate-700 dark:text-slate-300" {...props} />,
-                                                                ul: ({ node, ...props }) => <ul className="list-disc ml-6 mb-3 space-y-2 text-slate-700 dark:text-slate-300" {...props} />,
-                                                                ol: ({ node, ...props }) => <ol className="list-decimal ml-6 mb-3 space-y-2 text-slate-700 dark:text-slate-300" {...props} />,
-                                                                li: ({ node, ...props }) => <li className="leading-relaxed pl-1" {...props} />,
-                                                                strong: ({ node, ...props }) => <strong className="font-bold text-slate-900 dark:text-white" {...props} />,
-                                                                em: ({ node, ...props }) => <em className="italic text-slate-800 dark:text-slate-200" {...props} />,
-                                                                code: ({ node, ...props }) => <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm font-mono text-blue-800 dark:text-blue-200" {...props} />,
-                                                                blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-blue-500 pl-4 py-2 my-3 bg-blue-50 dark:bg-blue-900/20 italic text-slate-700 dark:text-slate-300" {...props} />,
-                                                                hr: ({ node, ...props }) => <hr className="my-4 border-slate-300 dark:border-slate-600" {...props} />,
-                                                                // Table components
-                                                                table: ({ node, ...props }) => <div className="overflow-x-auto my-4 rounded-lg border border-slate-200 dark:border-slate-700"><table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700 text-sm" {...props} /></div>,
-                                                                thead: ({ node, ...props }) => <thead className="bg-slate-50 dark:bg-slate-800" {...props} />,
-                                                                tbody: ({ node, ...props }) => <tbody className="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900" {...props} />,
-                                                                tr: ({ node, ...props }) => <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" {...props} />,
-                                                                th: ({ node, ...props }) => <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white uppercase tracking-wider text-xs" {...props} />,
-                                                                td: ({ node, ...props }) => <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-nowrap" {...props} />,
-                                                            }}
-                                                        >
-                                                            {message.content}
-                                                        </ReactMarkdown>
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-sm">{message.content}</div>
-                                                )}
-                                                {message.chart && (
-                                                    <div className="mt-4 bg-white dark:bg-slate-800 rounded-xl p-4">
-                                                        <h4 className="font-bold text-slate-900 dark:text-white mb-3">{message.chart.title}</h4>
-                                                        {renderChart(message.chart)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                                {isLoading && (
-                                    <div className="flex justify-start">
-                                        <div className="bg-slate-100 dark:bg-slate-700 rounded-2xl p-4">
-                                            <div className="flex gap-2">
-                                                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-                                                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                                                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Input */}
-                            <div className="p-6 border-t border-slate-200 dark:border-slate-700">
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={inputMessage}
-                                        onChange={(e) => setInputMessage(e.target.value)}
-                                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                                        placeholder="Ask me anything about your finances..."
-                                        className="flex-1 px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                                    />
-                                    <button
-                                        onClick={() => handleSendMessage()}
-                                        disabled={isLoading}
-                                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-bold rounded-xl transition-colors shadow-lg"
-                                    >
-                                        {isLoading ? '...' : '📤 Send'}
-                                    </button>
-                                </div>
+                            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                                <button
+                                    onClick={() => window.location.href = '/settings'}
+                                    className="px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black rounded-2xl transition-all shadow-xl shadow-orange-500/25 flex items-center gap-2"
+                                >
+                                    <span>Upgrade to Pro</span>
+                                    <span>👑</span>
+                                </button>
+                                <button
+                                    onClick={() => window.location.href = '/'}
+                                    className="px-8 py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-2xl transition-all"
+                                >
+                                    Return to Dashboard
+                                </button>
                             </div>
                         </div>
                     </div>
+                ) : (
+                    <>
+                        {/* AI Insights Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg">
+                                <div className="text-sm opacity-90">Net Worth Trend</div>
+                                <div className="text-3xl font-bold mt-2">{insights.netWorthTrend}</div>
+                                <div className="text-sm mt-1">Last 30 days</div>
+                            </div>
+                            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
+                                <div className="text-sm opacity-90">Biggest Asset Change</div>
+                                <div className="text-2xl font-bold mt-2">{insights.biggestAssetChange}</div>
+                                <div className="text-sm mt-1">This month</div>
+                            </div>
+                            <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl p-6 text-white shadow-lg">
+                                <div className="text-sm opacity-90">Biggest Liability Change</div>
+                                <div className="text-2xl font-bold mt-2">{insights.biggestLiabilityChange}</div>
+                                <div className="text-sm mt-1">This month</div>
+                            </div>
+                        </div>
 
-                    {/* Preset Questions */}
-                    <div className="lg:col-span-1">
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 sticky top-8">
-                            <h2 className="text-xl font-bold mb-6 text-slate-900 dark:text-white">📊 Graph Questions</h2>
-                            <div className="space-y-2">
-                                {PRESET_QUESTIONS.map(question => (
-                                    <button
-                                        key={question.id}
-                                        onClick={() => handlePresetQuestion(question.text)}
-                                        disabled={isLoading}
-                                        className="w-full text-left px-4 py-3 bg-slate-50 hover:bg-blue-50 dark:bg-slate-700 dark:hover:bg-blue-900/20 text-slate-900 dark:text-white rounded-xl transition-colors border border-slate-200 dark:border-slate-600 hover:border-blue-400 disabled:opacity-50"
-                                    >
-                                        <span className="mr-2">{question.icon}</span>
-                                        <span className="text-sm">{question.text}</span>
-                                    </button>
-                                ))}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Chat Area */}
+                            <div className="lg:col-span-2">
+                                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                    <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">💬 Chat with AI</h2>
+                                        <div className="flex gap-2">
+                                            <button onClick={handleExport} className="px-4 py-2 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium transition-colors">
+                                                📥 Export Report
+                                            </button>
+                                            <button onClick={handleClearChat} className="px-4 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-700 dark:text-red-400 rounded-lg text-sm font-medium transition-colors">
+                                                🗑️ Clear Chat
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Messages */}
+                                    <div className="p-6 space-y-4 h-96 overflow-y-auto">
+                                        {messages.length === 0 ? (
+                                            <div className="text-center py-12">
+                                                <div className="text-6xl mb-4">🤖</div>
+                                                <div className="text-slate-500 dark:text-slate-400">Start a conversation or use preset questions below</div>
+                                            </div>
+                                        ) : (
+                                            messages.map(message => (
+                                                <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                                    <div className={`max-w-3xl ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'} rounded-2xl p-4`}>
+                                                        <div className="text-sm font-semibold mb-1">{message.role === 'user' ? 'You' : '🤖 AI Assistant'}</div>
+                                                        {message.role === 'assistant' ? (
+                                                            <div className="prose prose-sm max-w-none text-slate-900 dark:text-slate-100">
+                                                                <ReactMarkdown
+                                                                    remarkPlugins={[remarkGfm]}
+                                                                    components={{
+                                                                        h1: ({ node, ...props }) => <h1 className="text-2xl font-bold mt-6 mb-3 pb-2 border-b-2 border-blue-500 text-slate-900 dark:text-white" {...props} />,
+                                                                        h2: ({ node, ...props }) => <h2 className="text-xl font-bold mt-5 mb-2 text-blue-600 dark:text-blue-400" {...props} />,
+                                                                        h3: ({ node, ...props }) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-800 dark:text-slate-200" {...props} />,
+                                                                        p: ({ node, ...props }) => <p className="mb-3 leading-relaxed text-slate-700 dark:text-slate-300" {...props} />,
+                                                                        ul: ({ node, ...props }) => <ul className="list-disc ml-6 mb-3 space-y-2 text-slate-700 dark:text-slate-300" {...props} />,
+                                                                        ol: ({ node, ...props }) => <ol className="list-decimal ml-6 mb-3 space-y-2 text-slate-700 dark:text-slate-300" {...props} />,
+                                                                        li: ({ node, ...props }) => <li className="leading-relaxed pl-1" {...props} />,
+                                                                        strong: ({ node, ...props }) => <strong className="font-bold text-slate-900 dark:text-white" {...props} />,
+                                                                        em: ({ node, ...props }) => <em className="italic text-slate-800 dark:text-slate-200" {...props} />,
+                                                                        code: ({ node, ...props }) => <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm font-mono text-blue-800 dark:text-blue-200" {...props} />,
+                                                                        blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-blue-500 pl-4 py-2 my-3 bg-blue-50 dark:bg-blue-900/20 italic text-slate-700 dark:text-slate-300" {...props} />,
+                                                                        hr: ({ node, ...props }) => <hr className="my-4 border-slate-300 dark:border-slate-600" {...props} />,
+                                                                        // Table components
+                                                                        table: ({ node, ...props }) => <div className="overflow-x-auto my-4 rounded-lg border border-slate-200 dark:border-slate-700"><table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700 text-sm" {...props} /></div>,
+                                                                        thead: ({ node, ...props }) => <thead className="bg-slate-50 dark:bg-slate-800" {...props} />,
+                                                                        tbody: ({ node, ...props }) => <tbody className="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-900" {...props} />,
+                                                                        tr: ({ node, ...props }) => <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" {...props} />,
+                                                                        th: ({ node, ...props }) => <th className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white uppercase tracking-wider text-xs" {...props} />,
+                                                                        td: ({ node, ...props }) => <td className="px-4 py-3 text-slate-700 dark:text-slate-300 whitespace-nowrap" {...props} />,
+                                                                    }}
+                                                                >
+                                                                    {message.content}
+                                                                </ReactMarkdown>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-sm">{message.content}</div>
+                                                        )}
+                                                        {message.chart && (
+                                                            <div className="mt-4 bg-white dark:bg-slate-800 rounded-xl p-4">
+                                                                <h4 className="font-bold text-slate-900 dark:text-white mb-3">{message.chart.title}</h4>
+                                                                {renderChart(message.chart)}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                        {isLoading && (
+                                            <div className="flex justify-start">
+                                                <div className="bg-slate-100 dark:bg-slate-700 rounded-2xl p-4">
+                                                    <div className="flex gap-2">
+                                                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+                                                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Input */}
+                                    <div className="p-6 border-t border-slate-200 dark:border-slate-700">
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={inputMessage}
+                                                onChange={(e) => setInputMessage(e.target.value)}
+                                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                                                placeholder="Ask me anything about your finances..."
+                                                className="flex-1 px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                            <button
+                                                onClick={() => handleSendMessage()}
+                                                disabled={isLoading}
+                                                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-bold rounded-xl transition-colors shadow-lg"
+                                            >
+                                                {isLoading ? '...' : '📤 Send'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl">
-                                <div className="flex gap-2">
-                                    <span className="text-lg">💡</span>
-                                    <div className="text-xs text-yellow-800 dark:text-yellow-400">
-                                        <div className="font-semibold">Note</div>
-                                        <div className="mt-1">AI is read-only and cannot modify your data. It only provides analysis and insights.</div>
+                            {/* Preset Questions */}
+                            <div className="lg:col-span-1">
+                                <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 sticky top-8">
+                                    <h2 className="text-xl font-bold mb-6 text-slate-900 dark:text-white">📊 Graph Questions</h2>
+                                    <div className="space-y-2">
+                                        {PRESET_QUESTIONS.map(question => (
+                                            <button
+                                                key={question.id}
+                                                onClick={() => handlePresetQuestion(question.text)}
+                                                disabled={isLoading}
+                                                className="w-full text-left px-4 py-3 bg-slate-50 hover:bg-blue-50 dark:bg-slate-700 dark:hover:bg-blue-900/20 text-slate-900 dark:text-white rounded-xl transition-colors border border-slate-200 dark:border-slate-600 hover:border-blue-400 disabled:opacity-50"
+                                            >
+                                                <span className="mr-2">{question.icon}</span>
+                                                <span className="text-sm">{question.text}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl">
+                                        <div className="flex gap-2">
+                                            <span className="text-lg">💡</span>
+                                            <div className="text-xs text-yellow-800 dark:text-yellow-400">
+                                                <div className="font-semibold">Note</div>
+                                                <div className="mt-1">AI is read-only and cannot modify your data. It only provides analysis and insights.</div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
+                    </>
+                )}
             </div>
         </div>
     );

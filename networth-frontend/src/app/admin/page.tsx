@@ -143,7 +143,9 @@ export default function AdminPage() {
                 isActive: editingUser.isActive,
                 isDisabled: editingUser.isDisabled,
                 failedLoginAttempts: editingUser.isDisabled ? undefined : 0, // Reset to 0 if disabling the lock
-                password: editingUser.newPassword || undefined
+                password: editingUser.newPassword || undefined,
+                planType: editingUser.planType,
+                proEndDate: editingUser.proEndDate,
             });
             setMessage(`✅ Success: User updated!`);
             setShowEditModal(false);
@@ -361,8 +363,11 @@ export default function AdminPage() {
                                 <thead className="bg-slate-50/50 dark:bg-slate-800/30 text-slate-500 text-xs font-bold uppercase tracking-widest">
                                     <tr>
                                         <th className="px-8 py-5">User</th>
+                                        <th className="px-6 py-5">Customer ID</th>
+                                        <th className="px-6 py-5">Plan</th>
                                         <th className="px-6 py-5">Role</th>
                                         <th className="px-6 py-5">Status</th>
+                                        <th className="px-6 py-5">Last Login</th>
                                         <th className="px-8 py-5 text-right">Actions</th>
                                     </tr>
                                 </thead>
@@ -380,6 +385,23 @@ export default function AdminPage() {
                                                         </div>
                                                         <div className="text-xs text-slate-400 font-medium">{u.email}</div>
                                                     </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-5">
+                                                <div className="font-mono text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded w-fit">
+                                                    {u.id ? u.id.split('-')[0] : 'N/A'}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-5">
+                                                <div className="flex flex-col gap-1 items-start">
+                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${u.planType === 'PRO' ? 'bg-amber-100 text-amber-700' : u.planType === 'ENTERPRISE' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>
+                                                        {u.planType || 'FREE'}
+                                                    </span>
+                                                    {u.planType === 'PRO' && u.proEndDate && (
+                                                        <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">
+                                                            Ends {new Date(u.proEndDate).toLocaleDateString()}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5">
@@ -404,6 +426,20 @@ export default function AdminPage() {
                                                     )}
                                                 </div>
                                             </td>
+                                            <td className="px-6 py-5">
+                                                {u.lastActiveAt ? (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                                            {new Date(u.lastActiveAt).toLocaleDateString()}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-400 font-medium">
+                                                            {new Date(u.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xs text-slate-400 italic">Never</span>
+                                                )}
+                                            </td>
                                             <td className="px-8 py-5 text-right whitespace-nowrap">
                                                 <div className="flex gap-2 justify-end">
                                                     <button onClick={() => handleEditUser(u)} className="p-2 bg-slate-100 hover:bg-blue-100 rounded-lg transition-colors" title="Edit User">✏️</button>
@@ -415,7 +451,7 @@ export default function AdminPage() {
                                     ))}
                                     {filteredUsers.length === 0 && (
                                         <tr>
-                                            <td colSpan={4} className="px-8 py-20 text-center">
+                                            <td colSpan={6} className="px-8 py-20 text-center">
                                                 <div className="text-4xl mb-4">🔍</div>
                                                 <p className="text-slate-500 font-bold text-lg">No users found</p>
                                                 <p className="text-slate-400 text-sm">Try adjusting your search query</p>
@@ -555,20 +591,37 @@ export default function AdminPage() {
                             />
                             <div className="grid grid-cols-2 gap-4">
                                 <select
-                                    className="w-full px-5 py-1 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none outline-none font-bold"
-                                    value={editingUser.role} onChange={e => setEditingUser({ ...editingUser, role: e.target.value })}
+                                    className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none outline-none font-bold"
+                                    value={editingUser.role || 'USER'} onChange={e => setEditingUser({ ...editingUser, role: e.target.value })}
                                 >
                                     <option value="USER">User</option>
                                     <option value="SUPER_ADMIN">Admin</option>
                                 </select>
                                 <select
-                                    className="w-full px-5 py-1 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none outline-none font-bold"
+                                    className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none outline-none font-bold"
                                     value={editingUser.isActive ? 'true' : 'false'}
                                     onChange={e => setEditingUser({ ...editingUser, isActive: e.target.value === 'true' })}
                                 >
                                     <option value="true">Active</option>
                                     <option value="false">Disabled</option>
                                 </select>
+                                <select
+                                    className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none outline-none font-bold"
+                                    value={editingUser.planType || 'FREE'}
+                                    onChange={e => setEditingUser({ ...editingUser, planType: e.target.value })}
+                                >
+                                    <option value="FREE">Free Plan</option>
+                                    <option value="PRO">Pro Plan</option>
+                                    <option value="ENTERPRISE">Enterprise Plan</option>
+                                </select>
+                                {editingUser.planType === 'PRO' && (
+                                    <input
+                                        type="date"
+                                        className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none outline-none font-bold text-sm text-slate-500"
+                                        value={editingUser.proEndDate ? new Date(editingUser.proEndDate).toISOString().split('T')[0] : ''}
+                                        onChange={e => setEditingUser({ ...editingUser, proEndDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                                    />
+                                )}
                             </div>
                             <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between">
                                 <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Account Lock Status</span>

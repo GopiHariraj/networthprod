@@ -20,6 +20,12 @@ enum Role {
   USER
 }
 
+enum PlanType {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -73,6 +79,15 @@ model User {
   expenseCategories ExpenseCategory[]
   insurancePolicies InsurancePolicy[]
   todoItems         ToDoItem[]
+
+  // Pro Plan Settings
+  planType                  PlanType @default(FREE)
+  proStartDate              DateTime?
+  proEndDate                DateTime?
+  lastActiveAt              DateTime @default(now())
+  emailNotificationsEnabled Boolean  @default(false)
+  nominee                   Nominee? // 1-to-1 relation
+  nomineeAccessRequests     NomineeAccessRequest[]
 
   @@map("users")
 }
@@ -653,4 +668,57 @@ model InsuranceClaim {
 
   @@index([policyId])
   @@map("insurance_claims")
+}
+
+// ============================================
+// NOMINEE ACCESS MODULE
+// ============================================
+
+model Nominee {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique
+  name                    String
+  email                   String?
+  mobile                  String?
+  relationship            String?
+  notes                   String?  @db.Text
+  inactivityThresholdDays Int      @default(60)
+  messageToNominee        String?  @db.Text
+  isEnabled               Boolean  @default(false)
+  lastTriggeredAt         DateTime?
+  
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessRequests          NomineeAccessRequest[]
+
+  @@map("nominees")
+}
+
+enum AccessRequestStatus {
+  SENT
+  VERIFIED
+  EXPIRED
+  REVOKED
+}
+
+model NomineeAccessRequest {
+  id               String   @id @default(uuid())
+  nomineeId        String
+  userId           String
+  tokenHash        String   @unique
+  otpHash          String?
+  otpExpiresAt     DateTime?
+  status           AccessRequestStatus @default(SENT)
+  expiresAt        DateTime // Token valid to claim until
+  accessWindowEnd  DateTime? // When read-only access expires
+  createdAt        DateTime @default(now())
+
+  nominee          Nominee  @relation(fields: [nomineeId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([nomineeId])
+  @@index([userId])
+  @@map("nominee_access_requests")
 }

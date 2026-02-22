@@ -100,6 +100,7 @@ export class AuthService {
         resetToken: null,
         resetTokenExpiry: null,
         forceChangePassword: true,
+        lastActiveAt: new Date(),
       },
     });
 
@@ -255,19 +256,25 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
     console.log(`[AuthService] Login successful for: ${user.id}`);
-    const payload = { email: user.email, sub: user.id, role: user.role };
+    const payload = { email: user.email, sub: user.id, role: user.role, planType: user.planType };
     const token = this.jwtService.sign(payload);
-    console.log(`[AuthService] Generated token for ${user.email} with payload:`, payload);
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastActiveAt: new Date() }
+    });
+
     return {
       access_token: token,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.firstName || 'User',
-        role: user.role,
-        currency: user.currency,
-        forceChangePassword: user.forceChangePassword,
-        moduleVisibility: user.moduleVisibility,
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.firstName || 'User',
+        role: updatedUser.role,
+        currency: updatedUser.currency,
+        forceChangePassword: updatedUser.forceChangePassword,
+        moduleVisibility: updatedUser.moduleVisibility,
+        planType: updatedUser.planType,
       },
     };
   }
@@ -300,6 +307,7 @@ export class AuthService {
         avatarUrl: picture,
         role: 'USER', // Default role
         isActive: true,
+        lastActiveAt: new Date()
         // No password for Google users
       },
     });
@@ -330,11 +338,12 @@ export class AuthService {
         firstName,
         lastName,
         role: 'USER',
+        lastActiveAt: new Date()
       },
     });
 
     // Generate token
-    const payload = { email: user.email, sub: user.id, role: user.role };
+    const payload = { email: user.email, sub: user.id, role: user.role, planType: user.planType };
     return {
       access_token: this.jwtService.sign(payload),
       user: {

@@ -25,6 +25,7 @@ import { DepreciatingAssetsModule } from './depreciating-assets/depreciating-ass
 import { ScheduleModule } from '@nestjs/schedule';
 import { TodoModule } from './todo/todo.module';
 import { MailModule } from './mail/mail.module';
+import { NomineeModule } from './nominee/nominee.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { MailModule } from './mail/mail.module';
     DepreciatingAssetsModule,
     TodoModule,
     MailModule,
+    NomineeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

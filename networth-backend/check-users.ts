@@ -7,7 +7,7 @@ async function main() {
         where: { isDeleted: false }
     });
     console.log('--- Current Users in DB ---');
-    users.forEach(u => {
+    users.forEach((u: any) => {
         console.log(`ID: ${u.id} | Email: ${u.email} | FirstName: "${u.firstName}" | LastName: "${u.lastName}" | Role: ${u.role}`);
     });
     process.exit(0);

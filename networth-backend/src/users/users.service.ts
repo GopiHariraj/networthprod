@@ -93,7 +93,7 @@ export class UsersService {
       },
     });
     // Map to format expected by FE (name, etc)
-    return dbUsers.map((u) => ({
+    return dbUsers.map((u: any) => ({
       id: u.id,
       email: u.email,
       name: u.firstName || (u as any).name,
@@ -118,7 +118,7 @@ export class UsersService {
       },
     });
 
-    return users.map((user) => UserResponseDto.fromUser(user));
+    return users.map((user: any) => UserResponseDto.fromUser(user));
   }
 
   async findOne(id: string): Promise<UserResponseDto> {
@@ -216,6 +216,9 @@ export class UsersService {
         ...(updateUserDto.moduleVisibility !== undefined && {
           moduleVisibility: updateUserDto.moduleVisibility,
         }),
+        ...(updateUserDto.planType && { planType: updateUserDto.planType }),
+        ...(updateUserDto.proStartDate !== undefined && { proStartDate: updateUserDto.proStartDate ? new Date(updateUserDto.proStartDate) : null }),
+        ...(updateUserDto.proEndDate !== undefined && { proEndDate: updateUserDto.proEndDate ? new Date(updateUserDto.proEndDate) : null }),
         ...(hashedPassword && { passwordHash: hashedPassword }),
       },
     });
@@ -294,6 +297,13 @@ export class UsersService {
     await this.prisma.user.update({
       where: { id: userId },
       data: { enableProductTour },
+    });
+  }
+
+  async updateEmailNotifications(userId: string, emailNotificationsEnabled: boolean): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { emailNotificationsEnabled },
     });
   }
 }

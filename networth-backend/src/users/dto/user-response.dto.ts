@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { Role, PlanType } from '@prisma/client';
 
 export class UserResponseDto {
   id: string;
@@ -13,6 +13,9 @@ export class UserResponseDto {
   forceChangePassword: boolean;
   moduleVisibility: any;
   enableProductTour: boolean;
+  planType: PlanType;
+  proStartDate: Date | null;
+  proEndDate: Date | null;
   createdAt: Date;
   updatedAt: Date;
 
@@ -34,6 +37,9 @@ export class UserResponseDto {
       forceChangePassword: user.forceChangePassword,
       moduleVisibility: user.moduleVisibility,
       enableProductTour: user.enableProductTour ?? true,
+      planType: user.planType,
+      proStartDate: user.proStartDate,
+      proEndDate: user.proEndDate,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     });

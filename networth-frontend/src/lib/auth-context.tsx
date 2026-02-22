@@ -15,6 +15,9 @@ interface User {
     forceChangePassword?: boolean;
     moduleVisibility?: Record<string, boolean>;
     enableProductTour?: boolean;
+    planType?: 'FREE' | 'PRO' | 'ENTERPRISE';
+    proStartDate?: string | null;
+    proEndDate?: string | null;
 }
 
 interface AuthContextType {

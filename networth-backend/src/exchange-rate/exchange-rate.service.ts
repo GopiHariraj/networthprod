@@ -135,7 +135,7 @@ export class ExchangeRateService {
             return null;
         }
 
-        const ratesMap = rates.reduce((acc, r) => {
+        const ratesMap = rates.reduce((acc: any, r: any) => {
             acc[r.targetCurrency] = {
                 rate: Number(r.rate),
                 fetchedAt: r.fetchedAt,
@@ -169,7 +169,7 @@ export class ExchangeRateService {
                 if (cached && Object.keys(cached.rates).length > 0) {
                     return {
                         success: true,
-                        rates: Object.entries(cached.rates).reduce((acc, [curr, data]) => {
+                        rates: Object.entries(cached.rates).reduce((acc: any, [curr, data]: any) => {
                             acc[curr] = data.rate;
                             return acc;
                         }, {} as Record<string, number>),

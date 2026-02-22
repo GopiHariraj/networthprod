@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
   Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -72,6 +73,19 @@ export class UsersController {
     console.log(`[UsersController] updateProductTourPreference for user ${req.user.id}:`, body.enableProductTour);
     await this.usersService.updateProductTourPreference(req.user.id, body.enableProductTour);
     return { success: true, enableProductTour: body.enableProductTour };
+  }
+
+  @Put('me/email-notifications')
+  async updateEmailNotifications(
+    @Req() req: any,
+    @Body() body: { enabled: boolean },
+  ): Promise<{ success: boolean; emailNotificationsEnabled: boolean }> {
+    if (req.user.planType !== 'PRO' && req.user.planType !== 'ENTERPRISE') {
+      throw new ForbiddenException('Email notifications require a Pro plan.');
+    }
+    console.log(`[UsersController] updateEmailNotifications for user ${req.user.id}:`, body.enabled);
+    await this.usersService.updateEmailNotifications(req.user.id, body.enabled);
+    return { success: true, emailNotificationsEnabled: body.enabled };
   }
 
   @Get(':id')
