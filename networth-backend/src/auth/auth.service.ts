@@ -287,13 +287,16 @@ export class AuthService {
     });
 
     if (user) {
-      // 2. Link Google ID if not already linked
-      if (!user.googleId) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: { googleId, avatarUrl: picture },
-        });
-      }
+      // 2. Link Google ID if not already linked, and always update lastActiveAt
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          googleId: user.googleId || googleId,
+          avatarUrl: user.avatarUrl || picture,
+          lastActiveAt: new Date()
+        },
+      });
+
       return user;
     }
 
