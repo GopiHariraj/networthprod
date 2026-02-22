@@ -16,6 +16,7 @@ export class UserResponseDto {
   planType: PlanType;
   proStartDate: Date | null;
   proEndDate: Date | null;
+  lastActiveAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 
@@ -40,6 +41,7 @@ export class UserResponseDto {
       planType: user.planType,
       proStartDate: user.proStartDate,
       proEndDate: user.proEndDate,
+      lastActiveAt: user.lastActiveAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     });
