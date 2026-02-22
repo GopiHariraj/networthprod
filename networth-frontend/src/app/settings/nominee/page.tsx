@@ -49,7 +49,10 @@ export default function NomineeSettingsPage() {
 
         setSaving(true);
         try {
-            const res = await apiClient.put('/nominee', nominee);
+            // Strip DB-specific fields that validation will reject
+            const { id, userId, createdAt, updatedAt, lastTriggeredAt, ...payload } = nominee as any;
+
+            const res = await apiClient.put('/nominee', payload);
             setNominee(res.data);
             setSuccess('Nominee settings saved successfully! 🛡️');
             setTimeout(() => setSuccess(''), 5000);
