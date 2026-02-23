@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
   Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { StockAssetsService } from './stock-assets.service';
 import {
@@ -57,11 +58,17 @@ export class StockAssetsController {
 
   @Post(':id/refresh-price')
   refreshPrice(@Param('id') id: string, @Request() req: any) {
+    if (req.user.planType !== 'PRO' && req.user.planType !== 'ENTERPRISE') {
+      throw new ForbiddenException('Real-time API rate refresh requires a Pro plan.');
+    }
     return this.stockAssetsService.refreshPrice(id, req.user.id);
   }
 
   @Post('refresh-all-prices')
   refreshAllPrices(@Request() req: any) {
+    if (req.user.planType !== 'PRO' && req.user.planType !== 'ENTERPRISE') {
+      throw new ForbiddenException('Real-time API rate refresh requires a Pro plan.');
+    }
     return this.stockAssetsService.refreshAllPrices(req.user.id, req.user.email);
   }
 

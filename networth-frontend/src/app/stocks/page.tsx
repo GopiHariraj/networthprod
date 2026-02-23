@@ -342,14 +342,25 @@ export default function StocksPage() {
                             )}
                         </div>
                         <div className="flex flex-col md:flex-row gap-3">
-                            <button
-                                onClick={handleRefreshAllPrices}
-                                disabled={refreshingPrices || stocks.length === 0}
-                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors shadow-md flex items-center gap-2 justify-center"
-                            >
-                                <span className={refreshingPrices ? 'animate-spin' : ''}>🔄</span>
-                                {refreshingPrices ? 'Refreshing...' : 'Refresh Prices'}
-                            </button>
+                            {user?.planType === 'PRO' || user?.planType === 'ENTERPRISE' ? (
+                                <button
+                                    onClick={handleRefreshAllPrices}
+                                    disabled={refreshingPrices || stocks.length === 0}
+                                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors shadow-md flex items-center gap-2 justify-center"
+                                >
+                                    <span className={refreshingPrices ? 'animate-spin' : ''}>🔄</span>
+                                    {refreshingPrices ? 'Refreshing...' : 'Refresh Prices'}
+                                </button>
+                            ) : (
+                                <button
+                                    disabled
+                                    title="Pro Feature: Real-time API rate refresh requires Pro plan"
+                                    className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-400 font-semibold rounded-xl transition-colors shadow-sm flex items-center gap-2 justify-center cursor-not-allowed opacity-70"
+                                >
+                                    <span>🔒</span>
+                                    Pro Refresh
+                                </button>
+                            )}
                             <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
                                 {['Holdings', 'Add Asset', 'Analytics'].map(tab => (
                                     <button
