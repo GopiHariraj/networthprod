@@ -69,6 +69,10 @@ export const expensesApi = {
     delete: (id: string) => apiClient.delete(`/expenses/${id}`),
     getInsights: () => apiClient.get('/expenses/insights'),
     parseAi: (text: string) => apiClient.post('/expenses/ai-parse-text', { text }),
+    aiVoice: (formData: FormData) => apiClient.post('/expenses/ai/voice', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    aiImage: (formData: FormData) => apiClient.post('/expenses/ai/image', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    aiDocument: (formData: FormData) => apiClient.post('/expenses/ai/document', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    aiLink: (url: string) => apiClient.post('/expenses/ai/link', { url }),
     getReport: (filters: any) => apiClient.post('/expenses/report', filters),
 };
 

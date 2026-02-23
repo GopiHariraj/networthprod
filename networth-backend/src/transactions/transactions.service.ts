@@ -1,6 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { GeminiService } from '../common/openai/gemini.service';
+import { OpenAiService } from '../common/openai/openai.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { GoldAssetsService } from '../gold-assets/gold-assets.service';
 import { StockAssetsService } from '../stock-assets/stock-assets.service';
@@ -9,7 +9,7 @@ import { StockAssetsService } from '../stock-assets/stock-assets.service';
 export class TransactionsService {
   constructor(
     private prisma: PrismaService,
-    private geminiService: GeminiService,
+    private openAiService: OpenAiService,
     @Inject(forwardRef(() => GoldAssetsService))
     private goldAssetsService: GoldAssetsService,
     @Inject(forwardRef(() => StockAssetsService))
@@ -87,7 +87,7 @@ export class TransactionsService {
   }
 
   async parseAndCreate(userId: string, smsText: string, email: string) {
-    const parsed = await this.geminiService.parseSMSTransaction(smsText, email);
+    const parsed = await this.openAiService.parseSMSTransaction(smsText, email);
 
     // Route based on transaction type
     switch (parsed.type) {
@@ -400,7 +400,7 @@ export class TransactionsService {
 
   async analyzeReceipt(userId: string, imageBase64: string, email: string) {
     try {
-      const parsed = await this.geminiService.analyzeReceiptImage(imageBase64, email);
+      const parsed = await this.openAiService.analyzeReceiptImage(imageBase64, email);
 
       // Create expense transaction from receipt data
       const expense = await this.prisma.expense.create({
@@ -414,7 +414,7 @@ export class TransactionsService {
           recurrence: 'one-time',
           notes: `Receipt items: ${parsed.items?.map((i: any) => i.name).join(', ') || 'N/A'}`,
           userId,
-          source: 'gemini_vision',
+          source: 'openai_vision',
           periodTag: 'monthly',
         },
       });

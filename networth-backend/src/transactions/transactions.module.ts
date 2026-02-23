@@ -2,14 +2,14 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { TransactionsScheduler } from './transactions.scheduler';
 import { TransactionsController } from './transactions.controller';
-import { GeminiModule } from '../common/openai/gemini.module';
+import { OpenAiModule } from '../common/openai/openai.module';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { GoldAssetsModule } from '../gold-assets/gold-assets.module';
 import { StockAssetsModule } from '../stock-assets/stock-assets.module';
 
 @Module({
   imports: [
-    GeminiModule,
+    OpenAiModule,
     PrismaModule,
     forwardRef(() => GoldAssetsModule),
     forwardRef(() => StockAssetsModule),

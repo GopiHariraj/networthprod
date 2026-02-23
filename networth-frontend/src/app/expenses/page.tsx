@@ -99,6 +99,12 @@ export default function ExpensesPage() {
     const [isAiLoading, setIsAiLoading] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const documentInputRef = useRef<HTMLInputElement>(null);
+
+    // Voice Recording state
+    const [isRecording, setIsRecording] = useState(false);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
 
     // New Category state
     const [showAddCategory, setShowAddCategory] = useState(false);
@@ -290,56 +296,130 @@ export default function ExpensesPage() {
         }
     };
 
-    const handleAiAnalyze = async () => {
+    const handleAiAnalyzeTextOrLink = async () => {
         if (!aiText.trim()) return;
         setIsAiLoading(true);
         try {
-            const result = await financialDataApi.expenses.parseAi(aiText);
+            // Simple URL check to use Link API
+            let result;
+            if (aiText.trim().startsWith('http://') || aiText.trim().startsWith('https://')) {
+                result = await financialDataApi.expenses.aiLink(aiText.trim());
+            } else {
+                result = await financialDataApi.expenses.parseAi(aiText);
+            }
+
             if (result.data.items) {
                 setAiParsedItems(result.data.items);
                 setShowAiPreview(true);
             }
         } catch (error) {
-            alert('AI parsing failed');
+            alert('AI parsing failed. Please try again.');
         } finally {
             setIsAiLoading(false);
         }
     };
 
-    const handleAiConfirm = async () => {
+    const handleVoiceRecord = async () => {
+        if (isRecording) {
+            if (mediaRecorderRef.current) {
+                mediaRecorderRef.current.stop();
+            }
+            setIsRecording(false);
+        } else {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const mediaRecorder = new MediaRecorder(stream);
+                mediaRecorderRef.current = mediaRecorder;
+                audioChunksRef.current = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunksRef.current.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                    setIsAiLoading(true);
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', audioBlob, 'voice-note.webm');
+                        const result = await financialDataApi.expenses.aiVoice(formData);
+                        if (result.data.items) {
+                            setAiParsedItems(result.data.items);
+                            setShowAiPreview(true);
+                        }
+                    } catch (error) {
+                        alert('Voice parsing failed. Ensure OpenAI API is accessible.');
+                        console.error(error);
+                    } finally {
+                        setIsAiLoading(false);
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+                };
+
+                mediaRecorder.start();
+                setIsRecording(true);
+            } catch (err) {
+                alert('Microphone access denied or unavailable.');
+            }
+        }
+    };
+
+    const handleFileUploadActual = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
         setIsAiLoading(true);
         try {
-            for (const item of aiParsedItems) {
-                await financialDataApi.expenses.create({
-                    date: item.date,
-                    amount: parseFloat(item.amount),
-                    currency: item.currency || 'AED',
-                    category: item.category || 'Misc',
-                    merchant: item.merchant,
-                    paymentMethod: item.paymentMethod || 'cash',
-                    recurrence: 'one-time',
-                    periodTag: 'monthly',
-                    notes: item.notes,
-                    source: 'gemini_text'
-                });
+            const formData = new FormData();
+            formData.append('file', file);
+
+            let result;
+            if (file.type.includes('image')) {
+                result = await financialDataApi.expenses.aiImage(formData);
+            } else if (file.type === 'application/pdf' || file.type.includes('document')) {
+                result = await financialDataApi.expenses.aiDocument(formData);
+            } else {
+                alert('Unsupported file format. Please upload an image or PDF.');
+                setIsAiLoading(false);
+                return;
             }
-            fetchData();
-            setAiText('');
-            setAiParsedItems([]);
-            setShowAiPreview(false);
-        } catch (err) {
-            alert('Partial failure saving items');
+
+            if (result.data.items) {
+                setAiParsedItems(result.data.items);
+                setShowAiPreview(true);
+            }
+        } catch (error) {
+            alert('File parsing failed.');
+            console.error(error);
         } finally {
             setIsAiLoading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            if (documentInputRef.current) documentInputRef.current.value = '';
         }
     };
 
-    // Receipt Upload Placeholder (Real OCR would happen here)
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            alert(`Receipt "${file.name}" uploaded! Simulating AI extraction...`);
-            setAiText(`Receipt from ${file.name.includes('Lulu') ? 'Lulu' : 'the store'} for ${Math.floor(Math.random() * 500)} AED`);
+    const handleFileDrop = async (file: File) => {
+        setIsAiLoading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            let result;
+            if (file.type.includes('image')) {
+                result = await financialDataApi.expenses.aiImage(formData);
+            } else {
+                result = await financialDataApi.expenses.aiDocument(formData);
+            }
+
+            if (result.data.items) {
+                setAiParsedItems(result.data.items);
+                setShowAiPreview(true);
+            }
+        } catch (error) {
+            alert('Drop processing failed.');
+        } finally {
+            setIsAiLoading(false);
         }
     };
 
@@ -996,33 +1076,60 @@ export default function ExpensesPage() {
                                 <h3 className="text-2xl font-black mb-2 flex items-center gap-3">
                                     <span className="animate-pulse">✨</span> AI Smart Recorder
                                 </h3>
-                                <p className="text-indigo-200/70 text-sm mb-8 font-medium">Drop a receipt image or paste text for instant extraction</p>
+                                <p className="text-indigo-200/70 text-sm mb-8 font-medium">Use voice notes, drop a receipt/PDF, or paste a link for instant extraction</p>
 
                                 <div
                                     className={`relative border-2 border-dashed rounded-[2rem] p-6 transition-all duration-300 ${isDragging ? 'border-blue-400 bg-white/10 scale-[1.02]' : 'border-white/20 hover:border-white/40'}`}
                                     onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                                     onDragLeave={() => setIsDragging(false)}
-                                    onDrop={(e) => { e.preventDefault(); setIsDragging(false); alert('Receipt received! (Simulating AI)'); setAiText('Lulu Hypermarket - 250 AED for groceries.'); }}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        setIsDragging(false);
+                                        const file = e.dataTransfer.files?.[0];
+                                        if (file) handleFileDrop(file);
+                                    }}
                                 >
                                     <textarea
                                         value={aiText}
                                         onChange={(e) => setAiText(e.target.value)}
-                                        placeholder="Type something like: 'Spent 50 AED at Shell for petrol today' or drag an image here..."
+                                        placeholder="Type something like: 'Spent 50 AED at Shell', paste an Amazon link, or drop a receipt..."
                                         rows={3}
                                         className="w-full bg-transparent border-none focus:ring-0 text-white placeholder:text-white/30 resize-none text-lg font-medium"
                                     />
                                     <div className="flex justify-between items-center mt-6">
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => documentInputRef.current?.click()}
+                                                className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl transition-all border border-white/10 text-white flex items-center gap-2 text-sm font-bold"
+                                                title="Upload PDF or Text Document"
+                                            >
+                                                <span className="text-xl">📄</span> Doc
+                                                <input type="file" ref={documentInputRef} onChange={handleFileUploadActual} className="hidden" accept=".pdf,.txt,.doc,.docx" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl transition-all border border-white/10 text-white flex items-center gap-2 text-sm font-bold"
+                                                title="Upload Receipt Image"
+                                            >
+                                                <span className="text-xl">📷</span> Image
+                                                <input type="file" ref={fileInputRef} onChange={handleFileUploadActual} className="hidden" accept="image/*" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleVoiceRecord}
+                                                className={`p-3 rounded-2xl transition-all border flex items-center gap-2 text-sm font-bold ${isRecording ? 'bg-red-500/80 border-red-400 animate-pulse text-white' : 'bg-white/10 hover:bg-white/20 border-white/10 text-white'}`}
+                                                title="Record Voice Note"
+                                            >
+                                                <span className="text-xl">🎤</span> {isRecording ? 'Stop Recording' : 'Voice'}
+                                            </button>
+                                        </div>
                                         <button
-                                            onClick={() => fileInputRef.current?.click()}
-                                            className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl transition-all border border-white/10"
-                                        >
-                                            <span className="text-xl">📷</span>
-                                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" />
-                                        </button>
-                                        <button
-                                            onClick={handleAiAnalyze}
+                                            type="button"
+                                            onClick={handleAiAnalyzeTextOrLink}
                                             disabled={isAiLoading || !aiText.trim()}
-                                            className="px-8 py-3.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white font-black rounded-[1.5rem] shadow-xl shadow-blue-500/30 transition-all flex items-center gap-2"
+                                            className="px-8 py-3.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:opacity-50 text-white font-black rounded-[1.5rem] shadow-xl shadow-blue-500/30 transition-all flex items-center gap-2"
                                         >
                                             {isAiLoading ? 'Magic in progress...' : 'Magic Extract'} <span>🪄</span>
                                         </button>
