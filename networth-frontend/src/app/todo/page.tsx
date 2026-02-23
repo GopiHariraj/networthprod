@@ -263,17 +263,17 @@ export default function TodoPage() {
                                         </div>
                                     </div>
 
-                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex gap-2 items-start">
                                         <button
                                             onClick={() => handleEdit(item)}
-                                            className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                                            className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 rounded-xl transition-all"
                                             title="Edit"
                                         >
                                             ✏️
                                         </button>
                                         <button
                                             onClick={() => handleDelete(item.id)}
-                                            className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                                            className="p-2 text-red-500 bg-red-50 hover:bg-red-100 dark:bg-red-900/10 dark:hover:bg-red-900/20 rounded-xl transition-all"
                                             title="Delete"
                                         >
                                             🗑️
